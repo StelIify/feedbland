@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -9,8 +10,11 @@ import (
 	"os"
 	"time"
 
+	"github.com/StelIify/feedbland/internal/database"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/joho/godotenv"
 )
 
 type config struct {
@@ -20,6 +24,7 @@ type App struct {
 	errorLog *log.Logger
 	infoLog  *log.Logger
 	config   config
+	db       *database.Queries
 }
 
 func main() {
@@ -29,10 +34,25 @@ func main() {
 	var cfg config
 	flag.IntVar(&cfg.port, "port", 8080, "API server port")
 
+	godotenv.Load()
+
+	dbUrl := os.Getenv("db_conn")
+	if dbUrl == "" {
+		erorrLog.Fatal("db_conn is not found in the enviroment")
+	}
+	dbpool, err := pgxpool.New(context.Background(), dbUrl)
+	if err != nil {
+		erorrLog.Fatal("Can't connect to the database", err)
+	}
+	defer dbpool.Close()
+
+	db := database.New(dbpool)
+
 	app := &App{
 		config:   cfg,
 		errorLog: erorrLog,
 		infoLog:  infoLog,
+		db:       db,
 	}
 
 	server := &http.Server{
@@ -47,19 +67,12 @@ func main() {
 	erorrLog.Fatal(server.ListenAndServe())
 }
 
-func (app *App) healthCheckHandler(w http.ResponseWriter, r *http.Request) {
-	msg := map[string]string{"message": "succesful response"}
-	err := app.writeJson(w, 200, msg, nil)
-	if err != nil {
-		app.errorLog.Printf("marshal error: %v", err)
-	}
-}
-
 func (app *App) routes() http.Handler {
 	r := chi.NewRouter()
 	r.Use(middleware.Logger)
 
 	r.Get("/api/v1/healthcheck", app.healthCheckHandler)
+	r.Post("/api/v1/users", app.createUserHandler)
 
 	return r
 }
