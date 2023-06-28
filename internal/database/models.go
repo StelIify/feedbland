@@ -13,7 +13,7 @@ type User struct {
 	CreatedAt    pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt    pgtype.Timestamptz `json:"updated_at"`
 	Name         string             `json:"name"`
-	Email        interface{}        `json:"email"`
+	Email        string             `json:"email"`
 	PasswordHash []byte             `json:"password_hash"`
 	Activated    bool               `json:"activated"`
 	Version      int32              `json:"version"`

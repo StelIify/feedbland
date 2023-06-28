@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"flag"
 	"fmt"
 	"log"
@@ -75,19 +74,4 @@ func (app *App) routes() http.Handler {
 	r.Post("/api/v1/users", app.createUserHandler)
 
 	return r
-}
-
-func (app *App) writeJson(w http.ResponseWriter, status int, data any, headers http.Header) error {
-	response, err := json.Marshal(data)
-	if err != nil {
-		return err
-	}
-	for key, header := range headers {
-		w.Header()[key] = header
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	w.Write(response)
-
-	return nil
 }

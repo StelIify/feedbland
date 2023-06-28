@@ -7,23 +7,39 @@ package database
 
 import (
 	"context"
+
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const createUser = `-- name: CreateUser :one
 insert into users (name, email, password_hash)
 values ($1, $2, $3)
-returning id
+returning id, created_at, name, email, activated
 `
 
 type CreateUserParams struct {
-	Name         string      `json:"name"`
-	Email        interface{} `json:"email"`
-	PasswordHash []byte      `json:"password_hash"`
+	Name         string `json:"name"`
+	Email        string `json:"email"`
+	PasswordHash []byte `json:"password_hash"`
 }
 
-func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (int64, error) {
+type CreateUserRow struct {
+	ID        int64              `json:"id"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+	Name      string             `json:"name"`
+	Email     string             `json:"email"`
+	Activated bool               `json:"activated"`
+}
+
+func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (CreateUserRow, error) {
 	row := q.db.QueryRow(ctx, createUser, arg.Name, arg.Email, arg.PasswordHash)
-	var id int64
-	err := row.Scan(&id)
-	return id, err
+	var i CreateUserRow
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.Name,
+		&i.Email,
+		&i.Activated,
+	)
+	return i, err
 }

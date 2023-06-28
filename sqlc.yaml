@@ -8,3 +8,6 @@ sql:
         sql_package: "pgx/v5"
         emit_json_tags: True
         out: "internal/database"
+        overrides:
+          - db_type: "citext"
+            go_type: "string"

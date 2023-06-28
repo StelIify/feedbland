@@ -1,10 +1,13 @@
 package main
 
 import (
-	"encoding/json"
+	"errors"
 	"net/http"
 
 	"github.com/StelIify/feedbland/internal/database"
+	"github.com/StelIify/feedbland/internal/validator"
+	"github.com/jackc/pgerrcode"
+	"github.com/jackc/pgx/v5/pgconn"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -16,32 +19,49 @@ func (app *App) healthCheckHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 func (app *App) createUserHandler(w http.ResponseWriter, r *http.Request) {
-	type input struct {
+	var input struct {
 		Name     string `json:"name"`
 		Email    string `json:"email"`
 		Password string `json:"password"`
 	}
-	decoder := json.NewDecoder(r.Body)
-	var i input
-	err := decoder.Decode(&i)
+	err := app.readJSON(w, r, &input)
 	if err != nil {
-		//responde with bad request in json
-		app.errorLog.Print(err)
+		app.badRequestResponse(w, r, err)
 		return
 	}
-	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(i.Password), 12)
+	user := &database.User{
+		Name:         input.Name,
+		Email:        input.Email,
+		PasswordHash: []byte(input.Password),
+	}
+	v := validator.NewValidator()
+	if validator.ValidateUser(v, user); !v.Valid() {
+		app.failedValidationResponse(w, r, v.Errors)
+		return
+	}
+
+	hashedPassword, err := bcrypt.GenerateFromPassword(user.PasswordHash, 12)
 	if err != nil {
-		app.errorLog.Print(err)
+		app.serverErrorResponse(w, r, err)
 		return
 	}
 	new_user, err := app.db.CreateUser(r.Context(), database.CreateUserParams{
-		Name:         i.Name,
-		Email:        i.Email,
+		Name:         input.Name,
+		Email:        input.Email,
 		PasswordHash: hashedPassword,
 	})
 	if err != nil {
-		app.errorLog.Print(err)
+		var pg_err *pgconn.PgError
+		if errors.As(err, &pg_err) && pg_err.Code == pgerrcode.UniqueViolation {
+			v.AddError("email", "a user with this email address already exists")
+			app.failedValidationResponse(w, r, v.Errors)
+			return
+		}
+		app.serverErrorResponse(w, r, err)
 		return
 	}
-	app.writeJson(w, 200, new_user, nil)
+	err = app.writeJson(w, http.StatusCreated, envelope{"user": new_user}, nil)
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+	}
 }
