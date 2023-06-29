@@ -72,6 +72,7 @@ func (app *App) routes() http.Handler {
 
 	r.Get("/api/v1/healthcheck", app.healthCheckHandler)
 	r.Post("/api/v1/users", app.createUserHandler)
+	r.Post("/api/v1/feeds", app.createFeedHandler)
 
 	return r
 }

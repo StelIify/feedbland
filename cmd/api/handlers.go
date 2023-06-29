@@ -65,3 +65,46 @@ func (app *App) createUserHandler(w http.ResponseWriter, r *http.Request) {
 		app.serverErrorResponse(w, r, err)
 	}
 }
+
+func (app *App) createFeedHandler(w http.ResponseWriter, r *http.Request) {
+	var input struct {
+		Name string `"json:name"`
+		Url  string `"json:url"`
+	}
+
+	err := app.readJSON(w, r, &input)
+
+	if err != nil {
+		app.badRequestResponse(w, r, err)
+		return
+	}
+	feed := &database.Feed{
+		Name: input.Name,
+		Url:  input.Url,
+	}
+	v := validator.NewValidator()
+	if validator.ValidateFeed(v, feed); !v.Valid() {
+		app.failedValidationResponse(w, r, v.Errors)
+		return
+	}
+
+	new_feed, err := app.db.CreateFeed(r.Context(), database.CreateFeedParams{
+		Name: input.Name,
+		Url:  input.Url,
+	})
+
+	if err != nil {
+		var pg_err *pgconn.PgError
+		if errors.As(err, &pg_err) && pg_err.Code == pgerrcode.UniqueViolation {
+			v.AddError("url", "feed with this url already exists")
+			app.failedValidationResponse(w, r, v.Errors)
+			return
+		}
+		app.serverErrorResponse(w, r, err)
+		return
+	}
+	err = app.writeJson(w, http.StatusCreated, envelope{"feed": new_feed}, nil)
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+	}
+}

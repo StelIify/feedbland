@@ -8,6 +8,16 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type Feed struct {
+	ID        int64              `json:"id"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
+	Name      string             `json:"name"`
+	Slug      pgtype.Text        `json:"slug"`
+	Url       string             `json:"url"`
+	UserID    pgtype.Int8        `json:"user_id"`
+}
+
 type User struct {
 	ID           int64              `json:"id"`
 	CreatedAt    pgtype.Timestamptz `json:"created_at"`
