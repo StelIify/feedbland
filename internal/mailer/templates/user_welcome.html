@@ -1,0 +1,22 @@
+{{define "subject"}}Welcome to Feedbland!{{end}} {{define "plainBody"}} Hi,
+Thanks for signing up for a Feedbland account. We're excited to have you on
+board! For future reference, your user ID number is {{.ID}}. Thanks, The
+Feedbland Team {{end}} {{define "htmlBody"}}
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta name="viewport" content="width=device-width" />
+        <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+    </head>
+    <body>
+        <p>Hi,</p>
+        <p>
+            Thanks for signing up for a Feedbland account. We're excited to have
+            you on board!
+        </p>
+        <p>For future reference, your user ID number is {{.ID}}.</p>
+        <p>Thanks,</p>
+        <p>The Feedbland Team</p>
+    </body>
+</html>
+{{end}}

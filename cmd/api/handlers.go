@@ -60,9 +60,15 @@ func (app *App) createUserHandler(w http.ResponseWriter, r *http.Request) {
 		app.serverErrorResponse(w, r, err)
 		return
 	}
+	err = app.mailer.Send(user.Email, "user_welcome.html", new_user)
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+		return
+	}
 	err = app.writeJson(w, http.StatusCreated, envelope{"user": new_user}, nil)
 	if err != nil {
 		app.serverErrorResponse(w, r, err)
+		return
 	}
 }
 

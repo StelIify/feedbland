@@ -43,3 +43,64 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (CreateU
 	)
 	return i, err
 }
+
+const getUserByEmail = `-- name: GetUserByEmail :one
+select id, created_at, name, email, password_hash, activated, version
+from users
+where email = $1
+`
+
+type GetUserByEmailRow struct {
+	ID           int64              `json:"id"`
+	CreatedAt    pgtype.Timestamptz `json:"created_at"`
+	Name         string             `json:"name"`
+	Email        string             `json:"email"`
+	PasswordHash []byte             `json:"password_hash"`
+	Activated    bool               `json:"activated"`
+	Version      int32              `json:"version"`
+}
+
+func (q *Queries) GetUserByEmail(ctx context.Context, email string) (GetUserByEmailRow, error) {
+	row := q.db.QueryRow(ctx, getUserByEmail, email)
+	var i GetUserByEmailRow
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.Name,
+		&i.Email,
+		&i.PasswordHash,
+		&i.Activated,
+		&i.Version,
+	)
+	return i, err
+}
+
+const updateUser = `-- name: UpdateUser :one
+update users
+set name=$1, email=$2, password_hash=$3, activated=$4, version= version + 1
+where id=$5 and version=$6 
+returning version
+`
+
+type UpdateUserParams struct {
+	Name         string `json:"name"`
+	Email        string `json:"email"`
+	PasswordHash []byte `json:"password_hash"`
+	Activated    bool   `json:"activated"`
+	ID           int64  `json:"id"`
+	Version      int32  `json:"version"`
+}
+
+func (q *Queries) UpdateUser(ctx context.Context, arg UpdateUserParams) (int32, error) {
+	row := q.db.QueryRow(ctx, updateUser,
+		arg.Name,
+		arg.Email,
+		arg.PasswordHash,
+		arg.Activated,
+		arg.ID,
+		arg.Version,
+	)
+	var version int32
+	err := row.Scan(&version)
+	return version, err
+}

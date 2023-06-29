@@ -2,14 +2,16 @@ package main
 
 import (
 	"context"
-	"flag"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
+	"strconv"
 	"time"
 
 	"github.com/StelIify/feedbland/internal/database"
+	"github.com/StelIify/feedbland/internal/mailer"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -17,29 +19,68 @@ import (
 )
 
 type config struct {
-	port int
+	port    int
+	db_conn string
+	smtp    struct {
+		host     string
+		port     int
+		username string
+		password string
+		sender   string
+	}
 }
 type App struct {
 	errorLog *log.Logger
 	infoLog  *log.Logger
 	config   config
 	db       *database.Queries
+	mailer   mailer.Mailer
 }
 
+func setupConfig() (config, error) {
+	godotenv.Load()
+
+	portStr := os.Getenv("server_port")
+	port, _ := strconv.Atoi(portStr)
+	dbUrl := os.Getenv("db_conn")
+	if dbUrl == "" {
+		return config{}, errors.New("db_conn was not found in the environment variables")
+	}
+	smtpHost := os.Getenv("smtp_host")
+	smtpPortStr := os.Getenv("smtp_port")
+	smtpPort, _ := strconv.Atoi(smtpPortStr)
+	smtpUsername := os.Getenv("smtp_username")
+	smtpPassword := os.Getenv("smtp_password")
+	smtpSender := os.Getenv("smtp_sender")
+	cfg := config{
+		port:    port,
+		db_conn: dbUrl,
+		smtp: struct {
+			host     string
+			port     int
+			username string
+			password string
+			sender   string
+		}{
+			host:     smtpHost,
+			port:     smtpPort,
+			username: smtpUsername,
+			password: smtpPassword,
+			sender:   smtpSender,
+		},
+	}
+	return cfg, nil
+}
 func main() {
 	erorrLog := log.New(os.Stderr, "ERROR\t", log.Ldate|log.Ltime|log.Lshortfile)
 	infoLog := log.New(os.Stdout, "", log.Ldate|log.Ltime)
 
-	var cfg config
-	flag.IntVar(&cfg.port, "port", 8080, "API server port")
-
-	godotenv.Load()
-
-	dbUrl := os.Getenv("db_conn")
-	if dbUrl == "" {
-		erorrLog.Fatal("db_conn is not found in the enviroment")
+	cfg, err := setupConfig()
+	if err != nil {
+		erorrLog.Fatal(err)
 	}
-	dbpool, err := pgxpool.New(context.Background(), dbUrl)
+
+	dbpool, err := pgxpool.New(context.Background(), cfg.db_conn)
 	if err != nil {
 		erorrLog.Fatal("Can't connect to the database", err)
 	}
@@ -52,6 +93,7 @@ func main() {
 		errorLog: erorrLog,
 		infoLog:  infoLog,
 		db:       db,
+		mailer:   mailer.NewMailer(cfg.smtp.host, cfg.smtp.port, cfg.smtp.username, cfg.smtp.password, cfg.smtp.sender),
 	}
 
 	server := &http.Server{
