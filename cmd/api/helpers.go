@@ -72,3 +72,18 @@ func (app *App) readJSON(w http.ResponseWriter, r *http.Request, dest interface{
 
 	return nil
 }
+
+func (app *App) runInBackground(fn func()) {
+	app.wg.Add(1)
+	go func() {
+		defer app.wg.Done()
+
+		defer func() {
+			if err := recover(); err != nil {
+				app.errorLog.Println(err)
+			}
+		}()
+
+		fn()
+	}()
+}

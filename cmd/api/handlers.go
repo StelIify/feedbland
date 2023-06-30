@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"net/http"
+	"time"
 
 	"github.com/StelIify/feedbland/internal/database"
 	"github.com/StelIify/feedbland/internal/validator"
@@ -13,6 +14,7 @@ import (
 
 func (app *App) healthCheckHandler(w http.ResponseWriter, r *http.Request) {
 	msg := map[string]string{"message": "succesful response"}
+	time.Sleep(5 * time.Second)
 	err := app.writeJson(w, 200, msg, nil)
 	if err != nil {
 		app.errorLog.Printf("marshal error: %v", err)
@@ -60,12 +62,13 @@ func (app *App) createUserHandler(w http.ResponseWriter, r *http.Request) {
 		app.serverErrorResponse(w, r, err)
 		return
 	}
-	err = app.mailer.Send(user.Email, "user_welcome.html", new_user)
-	if err != nil {
-		app.serverErrorResponse(w, r, err)
-		return
-	}
-	err = app.writeJson(w, http.StatusCreated, envelope{"user": new_user}, nil)
+	app.runInBackground(func() {
+		err = app.mailer.Send(user.Email, "user_welcome.html", new_user)
+		if err != nil {
+			app.errorLog.Printf("problem during the process of sending welcome email: %v", err)
+		}
+	})
+	err = app.writeJson(w, http.StatusAccepted, envelope{"user": new_user}, nil)
 	if err != nil {
 		app.serverErrorResponse(w, r, err)
 		return
@@ -74,8 +77,8 @@ func (app *App) createUserHandler(w http.ResponseWriter, r *http.Request) {
 
 func (app *App) createFeedHandler(w http.ResponseWriter, r *http.Request) {
 	var input struct {
-		Name string `"json:name"`
-		Url  string `"json:url"`
+		Name string `json:"name"`
+		Url  string `json:"url"`
 	}
 
 	err := app.readJSON(w, r, &input)

@@ -3,12 +3,11 @@ package main
 import (
 	"context"
 	"errors"
-	"fmt"
 	"log"
 	"net/http"
 	"os"
 	"strconv"
-	"time"
+	"sync"
 
 	"github.com/StelIify/feedbland/internal/database"
 	"github.com/StelIify/feedbland/internal/mailer"
@@ -35,6 +34,7 @@ type App struct {
 	config   config
 	db       *database.Queries
 	mailer   mailer.Mailer
+	wg       sync.WaitGroup
 }
 
 func setupConfig() (config, error) {
@@ -96,16 +96,9 @@ func main() {
 		mailer:   mailer.NewMailer(cfg.smtp.host, cfg.smtp.port, cfg.smtp.username, cfg.smtp.password, cfg.smtp.sender),
 	}
 
-	server := &http.Server{
-		Handler:      app.routes(),
-		Addr:         fmt.Sprintf(":%d", cfg.port),
-		IdleTimeout:  time.Minute,
-		ReadTimeout:  time.Second * 10,
-		WriteTimeout: time.Second * 30,
+	if err = app.serve(); err != nil {
+		app.errorLog.Fatal(err)
 	}
-
-	infoLog.Printf("starting server on :%d", cfg.port)
-	erorrLog.Fatal(server.ListenAndServe())
 }
 
 func (app *App) routes() http.Handler {
@@ -116,5 +109,5 @@ func (app *App) routes() http.Handler {
 	r.Post("/api/v1/users", app.createUserHandler)
 	r.Post("/api/v1/feeds", app.createFeedHandler)
 
-	return r
+	return app.recoverPanic(r)
 }
