@@ -7,10 +7,7 @@ CREATE TABLE IF NOT EXISTS feeds (
     name varchar(250) not null,
     slug varchar(250),
     url text unique not null,
-    user_id bigint,
-    constraint fk_user foreign key(user_id)
-            references users(id)
-            on delete cascade
+    user_id bigint references users(id) on delete cascade
 );
 -- +goose StatementEnd
 

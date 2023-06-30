@@ -1,10 +1,12 @@
 package main
 
 import (
+	"crypto/sha256"
 	"errors"
 	"net/http"
 	"time"
 
+	"github.com/StelIify/feedbland/internal/auth"
 	"github.com/StelIify/feedbland/internal/database"
 	"github.com/StelIify/feedbland/internal/validator"
 	"github.com/jackc/pgerrcode"
@@ -62,8 +64,28 @@ func (app *App) createUserHandler(w http.ResponseWriter, r *http.Request) {
 		app.serverErrorResponse(w, r, err)
 		return
 	}
+	token, err := auth.GenerateToken(user.ID, 3*24*time.Hour, auth.ScopeActivation)
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+		return
+	}
+	err = app.db.CreateToken(r.Context(), database.CreateTokenParams{
+		Hash:   token.Hash,
+		UserID: new_user.ID,
+		Expiry: token.Expiry,
+		Scope:  token.Scope,
+	})
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+		return
+	}
+
 	app.runInBackground(func() {
-		err = app.mailer.Send(user.Email, "user_welcome.html", new_user)
+		data := map[string]interface{}{
+			"activationToken": token.Plaintext,
+			"userID":          new_user.ID,
+		}
+		err = app.mailer.Send(user.Email, "user_welcome.html", data)
 		if err != nil {
 			app.errorLog.Printf("problem during the process of sending welcome email: %v", err)
 		}
@@ -116,4 +138,44 @@ func (app *App) createFeedHandler(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		app.serverErrorResponse(w, r, err)
 	}
+}
+
+func (app *App) activateUserHandler(w http.ResponseWriter, r *http.Request) {
+	var input struct {
+		TokenPlainText string `json:"token"`
+	}
+
+	err := app.readJSON(w, r, &input)
+	if err != nil {
+		app.badRequestResponse(w, r, err)
+		return
+	}
+	v := validator.NewValidator()
+	if validator.ValidateTokenPlainText(v, input.TokenPlainText); !v.Valid() {
+		app.failedValidationResponse(w, r, v.Errors)
+		return
+	}
+	tokenHash := sha256.Sum256([]byte(input.TokenPlainText))
+	user, err := app.db.GetUserByToken(r.Context(), database.GetUserByTokenParams{
+		Hash:   tokenHash[:],
+		Scope:  auth.ScopeActivation,
+		Expiry: time.Now(),
+	})
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+		return
+	}
+	userVersion, err := app.db.UpdateUser(r.Context(), database.UpdateUserParams{
+		Name:         user.Name,
+		Email:        user.Email,
+		PasswordHash: user.PasswordHash,
+		Activated:    true,
+		ID:           user.ID,
+		Version:      user.Version,
+	})
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+		return
+	}
+	app.writeJson(w, http.StatusOK, userVersion, nil)
 }

@@ -1,13 +1,15 @@
 version: "2"
 sql:
-  - schema: "sql/schema"
-    queries: "sql/queries"
-    engine: "postgresql"
-    gen:
-      go:
-        sql_package: "pgx/v5"
-        emit_json_tags: True
-        out: "internal/database"
-        overrides:
-          - db_type: "citext"
-            go_type: "string"
+    - schema: "sql/schema"
+      queries: "sql/queries"
+      engine: "postgresql"
+      gen:
+          go:
+              sql_package: "pgx/v5"
+              emit_json_tags: True
+              out: "internal/database"
+              overrides:
+                  - db_type: "citext"
+                    go_type: "string"
+                  - db_type: "pg_catalog.timestamptz"
+                    go_type: "time.Time"

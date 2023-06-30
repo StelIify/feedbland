@@ -7,6 +7,7 @@ package database
 
 import (
 	"context"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
 )
@@ -23,11 +24,11 @@ type CreateFeedParams struct {
 }
 
 type CreateFeedRow struct {
-	ID        int64              `json:"id"`
-	CreatedAt pgtype.Timestamptz `json:"created_at"`
-	Name      string             `json:"name"`
-	Url       string             `json:"url"`
-	UserID    pgtype.Int8        `json:"user_id"`
+	ID        int64       `json:"id"`
+	CreatedAt time.Time   `json:"created_at"`
+	Name      string      `json:"name"`
+	Url       string      `json:"url"`
+	UserID    pgtype.Int8 `json:"user_id"`
 }
 
 func (q *Queries) CreateFeed(ctx context.Context, arg CreateFeedParams) (CreateFeedRow, error) {

@@ -7,8 +7,7 @@ package database
 
 import (
 	"context"
-
-	"github.com/jackc/pgx/v5/pgtype"
+	"time"
 )
 
 const createUser = `-- name: CreateUser :one
@@ -24,11 +23,11 @@ type CreateUserParams struct {
 }
 
 type CreateUserRow struct {
-	ID        int64              `json:"id"`
-	CreatedAt pgtype.Timestamptz `json:"created_at"`
-	Name      string             `json:"name"`
-	Email     string             `json:"email"`
-	Activated bool               `json:"activated"`
+	ID        int64     `json:"id"`
+	CreatedAt time.Time `json:"created_at"`
+	Name      string    `json:"name"`
+	Email     string    `json:"email"`
+	Activated bool      `json:"activated"`
 }
 
 func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (CreateUserRow, error) {
@@ -51,18 +50,58 @@ where email = $1
 `
 
 type GetUserByEmailRow struct {
-	ID           int64              `json:"id"`
-	CreatedAt    pgtype.Timestamptz `json:"created_at"`
-	Name         string             `json:"name"`
-	Email        string             `json:"email"`
-	PasswordHash []byte             `json:"password_hash"`
-	Activated    bool               `json:"activated"`
-	Version      int32              `json:"version"`
+	ID           int64     `json:"id"`
+	CreatedAt    time.Time `json:"created_at"`
+	Name         string    `json:"name"`
+	Email        string    `json:"email"`
+	PasswordHash []byte    `json:"password_hash"`
+	Activated    bool      `json:"activated"`
+	Version      int32     `json:"version"`
 }
 
 func (q *Queries) GetUserByEmail(ctx context.Context, email string) (GetUserByEmailRow, error) {
 	row := q.db.QueryRow(ctx, getUserByEmail, email)
 	var i GetUserByEmailRow
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.Name,
+		&i.Email,
+		&i.PasswordHash,
+		&i.Activated,
+		&i.Version,
+	)
+	return i, err
+}
+
+const getUserByToken = `-- name: GetUserByToken :one
+select id, created_at, name, email, password_hash, activated, version
+from users
+join tokens on tokens.user_id = users.id
+where tokens.hash=$1
+and tokens.scope=$2
+and tokens.expiry > $3
+`
+
+type GetUserByTokenParams struct {
+	Hash   []byte    `json:"hash"`
+	Scope  string    `json:"scope"`
+	Expiry time.Time `json:"expiry"`
+}
+
+type GetUserByTokenRow struct {
+	ID           int64     `json:"id"`
+	CreatedAt    time.Time `json:"created_at"`
+	Name         string    `json:"name"`
+	Email        string    `json:"email"`
+	PasswordHash []byte    `json:"password_hash"`
+	Activated    bool      `json:"activated"`
+	Version      int32     `json:"version"`
+}
+
+func (q *Queries) GetUserByToken(ctx context.Context, arg GetUserByTokenParams) (GetUserByTokenRow, error) {
+	row := q.db.QueryRow(ctx, getUserByToken, arg.Hash, arg.Scope, arg.Expiry)
+	var i GetUserByTokenRow
 	err := row.Scan(
 		&i.ID,
 		&i.CreatedAt,

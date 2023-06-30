@@ -5,26 +5,35 @@
 package database
 
 import (
+	"time"
+
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
 type Feed struct {
-	ID        int64              `json:"id"`
-	CreatedAt pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
-	Name      string             `json:"name"`
-	Slug      pgtype.Text        `json:"slug"`
-	Url       string             `json:"url"`
-	UserID    pgtype.Int8        `json:"user_id"`
+	ID        int64       `json:"id"`
+	CreatedAt time.Time   `json:"created_at"`
+	UpdatedAt time.Time   `json:"updated_at"`
+	Name      string      `json:"name"`
+	Slug      pgtype.Text `json:"slug"`
+	Url       string      `json:"url"`
+	UserID    pgtype.Int8 `json:"user_id"`
+}
+
+type Token struct {
+	Hash   []byte    `json:"hash"`
+	UserID int64     `json:"user_id"`
+	Expiry time.Time `json:"expiry"`
+	Scope  string    `json:"scope"`
 }
 
 type User struct {
-	ID           int64              `json:"id"`
-	CreatedAt    pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt    pgtype.Timestamptz `json:"updated_at"`
-	Name         string             `json:"name"`
-	Email        string             `json:"email"`
-	PasswordHash []byte             `json:"password_hash"`
-	Activated    bool               `json:"activated"`
-	Version      int32              `json:"version"`
+	ID           int64     `json:"id"`
+	CreatedAt    time.Time `json:"created_at"`
+	UpdatedAt    time.Time `json:"updated_at"`
+	Name         string    `json:"name"`
+	Email        string    `json:"email"`
+	PasswordHash []byte    `json:"password_hash"`
+	Activated    bool      `json:"activated"`
+	Version      int32     `json:"version"`
 }
