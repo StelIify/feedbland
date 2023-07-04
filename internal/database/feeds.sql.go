@@ -13,14 +13,15 @@ import (
 )
 
 const createFeed = `-- name: CreateFeed :one
-insert into feeds (name, url)
-values($1, $2)
+insert into feeds (name, url, user_id)
+values($1, $2, $3)
 returning id, created_at, name, url, user_id
 `
 
 type CreateFeedParams struct {
-	Name string `json:"name"`
-	Url  string `json:"url"`
+	Name   string      `json:"name"`
+	Url    string      `json:"url"`
+	UserID pgtype.Int8 `json:"user_id"`
 }
 
 type CreateFeedRow struct {
@@ -32,7 +33,7 @@ type CreateFeedRow struct {
 }
 
 func (q *Queries) CreateFeed(ctx context.Context, arg CreateFeedParams) (CreateFeedRow, error) {
-	row := q.db.QueryRow(ctx, createFeed, arg.Name, arg.Url)
+	row := q.db.QueryRow(ctx, createFeed, arg.Name, arg.Url, arg.UserID)
 	var i CreateFeedRow
 	err := row.Scan(
 		&i.ID,
@@ -42,4 +43,43 @@ func (q *Queries) CreateFeed(ctx context.Context, arg CreateFeedParams) (CreateF
 		&i.UserID,
 	)
 	return i, err
+}
+
+const listFeeds = `-- name: ListFeeds :many
+select id, created_at, name, url, user_id from feeds
+order by created_at
+`
+
+type ListFeedsRow struct {
+	ID        int64       `json:"id"`
+	CreatedAt time.Time   `json:"created_at"`
+	Name      string      `json:"name"`
+	Url       string      `json:"url"`
+	UserID    pgtype.Int8 `json:"user_id"`
+}
+
+func (q *Queries) ListFeeds(ctx context.Context) ([]ListFeedsRow, error) {
+	rows, err := q.db.Query(ctx, listFeeds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListFeedsRow
+	for rows.Next() {
+		var i ListFeedsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.Name,
+			&i.Url,
+			&i.UserID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }

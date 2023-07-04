@@ -4,14 +4,17 @@ import (
 	"crypto/sha256"
 	"errors"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/StelIify/feedbland/internal/auth"
 	"github.com/StelIify/feedbland/internal/database"
 	"github.com/StelIify/feedbland/internal/validator"
+	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgerrcode"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgtype"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -22,6 +25,7 @@ func (app *App) healthCheckHandler(w http.ResponseWriter, r *http.Request) {
 		app.errorLog.Printf("marshal error: %v", err)
 	}
 }
+
 func (app *App) createUserHandler(w http.ResponseWriter, r *http.Request) {
 	var input struct {
 		Name     string `json:"name"`
@@ -118,10 +122,18 @@ func (app *App) createFeedHandler(w http.ResponseWriter, r *http.Request) {
 		app.failedValidationResponse(w, r, v.Errors)
 		return
 	}
-
+	user := app.contextGetUser(r)
+	if auth.IsAnonymous(user) {
+		app.errorLog.Println("you are not logged in, it's anonymous")
+		app.invalidCredentialsResponse(w, r)
+		return
+	}
+	user_id := pgtype.Int8{}
+	user_id.Scan(user.ID)
 	new_feed, err := app.db.CreateFeed(r.Context(), database.CreateFeedParams{
-		Name: input.Name,
-		Url:  input.Url,
+		Name:   input.Name,
+		Url:    input.Url,
+		UserID: user_id,
 	})
 
 	if err != nil {
@@ -137,6 +149,7 @@ func (app *App) createFeedHandler(w http.ResponseWriter, r *http.Request) {
 	err = app.writeJson(w, http.StatusCreated, envelope{"feed": new_feed}, nil)
 	if err != nil {
 		app.serverErrorResponse(w, r, err)
+		return
 	}
 }
 
@@ -233,6 +246,73 @@ func (app *App) authenticateUserHandler(w http.ResponseWriter, r *http.Request) 
 	}
 	err = app.writeJson(w, http.StatusCreated, envelope{"auth_token": token}, nil)
 
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+		return
+	}
+
+}
+
+func (app *App) getAllFeedsHandler(w http.ResponseWriter, r *http.Request) {
+	feeds, err := app.db.ListFeeds(r.Context())
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+		return
+	}
+	err = app.writeJson(w, http.StatusOK, envelope{"feeds": feeds}, nil)
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+		return
+	}
+}
+
+func (app *App) createFeedFollowHandler(w http.ResponseWriter, r *http.Request) {
+	var input struct {
+		FeedID int64 `json:"feed_id"`
+	}
+	err := app.readJSON(w, r, &input)
+	if err != nil {
+		app.badRequestResponse(w, r, err)
+		return
+	}
+	//todo: validate input
+	user := app.contextGetUser(r)
+	app.errorLog.Println(user.ID)
+	feedFollow, err := app.db.CreateFeedFollow(r.Context(), database.CreateFeedFollowParams{
+		UserID: user.ID,
+		FeedID: input.FeedID,
+	})
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+		return
+	}
+	err = app.writeJson(w, http.StatusCreated, feedFollow, nil)
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+		return
+	}
+}
+
+func (app *App) deleteFeedFollowHandler(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+		return
+	}
+	user := app.contextGetUser(r)
+	//todo user should be authenticated, redirect
+	app.db.DeleteFeedFollow(r.Context(), database.DeleteFeedFollowParams{
+		UserID: user.ID,
+		FeedID: id,
+	})
+}
+func (app *App) listFeedFollowHandler(w http.ResponseWriter, r *http.Request) {
+	feed_follows, err := app.db.ListFeedFollow(r.Context())
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+		return
+	}
+	err = app.writeJson(w, http.StatusOK, feed_follows, nil)
 	if err != nil {
 		app.serverErrorResponse(w, r, err)
 		return

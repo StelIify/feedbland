@@ -109,6 +109,10 @@ func (app *App) routes() http.Handler {
 	r.Post("/api/v1/users", app.createUserHandler)
 	r.Put("/api/v1/users/activated", app.activateUserHandler)
 	r.Post("/api/v1/feeds", app.createFeedHandler)
+	r.Get("/api/v1/feeds", app.getAllFeedsHandler)
+	r.Post("/api/v1/feed_follows", app.createFeedFollowHandler)
+	r.Delete("/api/v1/feed_follows/{id}", app.deleteFeedFollowHandler)
+	r.Get("/api/v1/feed_follows", app.listFeedFollowHandler)
 	r.Post("/api/v1/tokens/auth", app.authenticateUserHandler)
 
 	return app.recoverPanic(app.authenticate(r))

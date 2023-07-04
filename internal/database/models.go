@@ -20,6 +20,13 @@ type Feed struct {
 	UserID    pgtype.Int8 `json:"user_id"`
 }
 
+type FeedFollow struct {
+	FeedID    int64     `json:"feed_id"`
+	UserID    int64     `json:"user_id"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
 type Token struct {
 	Hash   []byte    `json:"hash"`
 	UserID int64     `json:"user_id"`
