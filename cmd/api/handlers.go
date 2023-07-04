@@ -10,13 +10,13 @@ import (
 	"github.com/StelIify/feedbland/internal/database"
 	"github.com/StelIify/feedbland/internal/validator"
 	"github.com/jackc/pgerrcode"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"golang.org/x/crypto/bcrypt"
 )
 
 func (app *App) healthCheckHandler(w http.ResponseWriter, r *http.Request) {
 	msg := map[string]string{"message": "succesful response"}
-	time.Sleep(5 * time.Second)
 	err := app.writeJson(w, 200, msg, nil)
 	if err != nil {
 		app.errorLog.Printf("marshal error: %v", err)
@@ -178,4 +178,63 @@ func (app *App) activateUserHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	app.writeJson(w, http.StatusOK, userVersion, nil)
+}
+func (app *App) authenticateUserHandler(w http.ResponseWriter, r *http.Request) {
+	var input struct {
+		Email    string `json:"email"`
+		Password string `json:"password"`
+	}
+	err := app.readJSON(w, r, &input)
+	if err != nil {
+		app.badRequestResponse(w, r, err)
+		return
+	}
+	v := validator.NewValidator()
+	validator.ValidateEmail(v, input.Email)
+	validator.ValidatePassword(v, input.Password)
+
+	if !v.Valid() {
+		app.failedValidationResponse(w, r, v.Errors)
+		return
+	}
+	user, err := app.db.GetUserByEmail(r.Context(), input.Email)
+	if err != nil {
+		switch {
+		case errors.Is(err, pgx.ErrNoRows):
+			app.invalidCredentialsResponse(w, r)
+		default:
+			app.serverErrorResponse(w, r, err)
+		}
+		return
+	}
+	err = bcrypt.CompareHashAndPassword(user.PasswordHash, []byte(input.Password))
+	if err != nil {
+		app.invalidCredentialsResponse(w, r)
+		return
+	}
+
+	token, err := auth.GenerateToken(user.ID, 24*time.Hour, auth.ScopeAuthentication)
+
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+		return
+	}
+
+	err = app.db.CreateToken(r.Context(), database.CreateTokenParams{
+		Hash:   token.Hash,
+		UserID: user.ID,
+		Expiry: token.Expiry,
+		Scope:  token.Scope,
+	})
+
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+		return
+	}
+	err = app.writeJson(w, http.StatusCreated, envelope{"auth_token": token}, nil)
+
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+		return
+	}
 }
