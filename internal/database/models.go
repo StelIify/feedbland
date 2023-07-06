@@ -6,18 +6,15 @@ package database
 
 import (
 	"time"
-
-	"github.com/jackc/pgx/v5/pgtype"
 )
 
 type Feed struct {
-	ID        int64       `json:"id"`
-	CreatedAt time.Time   `json:"created_at"`
-	UpdatedAt time.Time   `json:"updated_at"`
-	Name      string      `json:"name"`
-	Slug      pgtype.Text `json:"slug"`
-	Url       string      `json:"url"`
-	UserID    pgtype.Int8 `json:"user_id"`
+	ID        int64     `json:"id"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+	Name      string    `json:"name"`
+	Url       string    `json:"url"`
+	UserID    int64     `json:"user_id"`
 }
 
 type FeedFollow struct {

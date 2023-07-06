@@ -8,8 +8,6 @@ package database
 import (
 	"context"
 	"time"
-
-	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const createFeed = `-- name: CreateFeed :one
@@ -19,17 +17,17 @@ returning id, created_at, name, url, user_id
 `
 
 type CreateFeedParams struct {
-	Name   string      `json:"name"`
-	Url    string      `json:"url"`
-	UserID pgtype.Int8 `json:"user_id"`
+	Name   string `json:"name"`
+	Url    string `json:"url"`
+	UserID int64  `json:"user_id"`
 }
 
 type CreateFeedRow struct {
-	ID        int64       `json:"id"`
-	CreatedAt time.Time   `json:"created_at"`
-	Name      string      `json:"name"`
-	Url       string      `json:"url"`
-	UserID    pgtype.Int8 `json:"user_id"`
+	ID        int64     `json:"id"`
+	CreatedAt time.Time `json:"created_at"`
+	Name      string    `json:"name"`
+	Url       string    `json:"url"`
+	UserID    int64     `json:"user_id"`
 }
 
 func (q *Queries) CreateFeed(ctx context.Context, arg CreateFeedParams) (CreateFeedRow, error) {
@@ -51,11 +49,11 @@ order by created_at
 `
 
 type ListFeedsRow struct {
-	ID        int64       `json:"id"`
-	CreatedAt time.Time   `json:"created_at"`
-	Name      string      `json:"name"`
-	Url       string      `json:"url"`
-	UserID    pgtype.Int8 `json:"user_id"`
+	ID        int64     `json:"id"`
+	CreatedAt time.Time `json:"created_at"`
+	Name      string    `json:"name"`
+	Url       string    `json:"url"`
+	UserID    int64     `json:"user_id"`
 }
 
 func (q *Queries) ListFeeds(ctx context.Context) ([]ListFeedsRow, error) {

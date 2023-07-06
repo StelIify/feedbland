@@ -14,7 +14,6 @@ import (
 	"github.com/jackc/pgerrcode"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
-	"github.com/jackc/pgx/v5/pgtype"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -128,12 +127,10 @@ func (app *App) createFeedHandler(w http.ResponseWriter, r *http.Request) {
 		app.invalidCredentialsResponse(w, r)
 		return
 	}
-	user_id := pgtype.Int8{}
-	user_id.Scan(user.ID)
 	new_feed, err := app.db.CreateFeed(r.Context(), database.CreateFeedParams{
 		Name:   input.Name,
 		Url:    input.Url,
-		UserID: user_id,
+		UserID: user.ID,
 	})
 
 	if err != nil {
@@ -143,6 +140,14 @@ func (app *App) createFeedHandler(w http.ResponseWriter, r *http.Request) {
 			app.failedValidationResponse(w, r, v.Errors)
 			return
 		}
+		app.serverErrorResponse(w, r, err)
+		return
+	}
+	_, err = app.db.CreateFeedFollow(r.Context(), database.CreateFeedFollowParams{
+		UserID: user.ID,
+		FeedID: new_feed.ID,
+	})
+	if err != nil {
 		app.serverErrorResponse(w, r, err)
 		return
 	}
