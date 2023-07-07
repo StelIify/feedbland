@@ -43,6 +43,39 @@ func (q *Queries) CreateFeed(ctx context.Context, arg CreateFeedParams) (CreateF
 	return i, err
 }
 
+const generateNextFeedsToFetch = `-- name: GenerateNextFeedsToFetch :many
+select id, name, url from feeds
+where last_fetched_at is null or last_fetched_at < now() - interval '1 day'
+order by last_fetched_at asc nulls first
+limit $1
+`
+
+type GenerateNextFeedsToFetchRow struct {
+	ID   int64  `json:"id"`
+	Name string `json:"name"`
+	Url  string `json:"url"`
+}
+
+func (q *Queries) GenerateNextFeedsToFetch(ctx context.Context, limit int32) ([]GenerateNextFeedsToFetchRow, error) {
+	rows, err := q.db.Query(ctx, generateNextFeedsToFetch, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GenerateNextFeedsToFetchRow
+	for rows.Next() {
+		var i GenerateNextFeedsToFetchRow
+		if err := rows.Scan(&i.ID, &i.Name, &i.Url); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listFeeds = `-- name: ListFeeds :many
 select id, created_at, name, url, user_id from feeds
 order by created_at
@@ -80,4 +113,15 @@ func (q *Queries) ListFeeds(ctx context.Context) ([]ListFeedsRow, error) {
 		return nil, err
 	}
 	return items, nil
+}
+
+const markFeedFetched = `-- name: MarkFeedFetched :exec
+update feeds
+set last_fetched_at=now(), updated_at=now()
+where id=$1
+`
+
+func (q *Queries) MarkFeedFetched(ctx context.Context, id int64) error {
+	_, err := q.db.Exec(ctx, markFeedFetched, id)
+	return err
 }

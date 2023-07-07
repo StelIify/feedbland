@@ -65,6 +65,20 @@ func (mr *MockQuerierMockRecorder) CreateFeedFollow(ctx, arg interface{}) *gomoc
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateFeedFollow", reflect.TypeOf((*MockQuerier)(nil).CreateFeedFollow), ctx, arg)
 }
 
+// CreatePost mocks base method.
+func (m *MockQuerier) CreatePost(ctx context.Context, arg database.CreatePostParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CreatePost", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// CreatePost indicates an expected call of CreatePost.
+func (mr *MockQuerierMockRecorder) CreatePost(ctx, arg interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreatePost", reflect.TypeOf((*MockQuerier)(nil).CreatePost), ctx, arg)
+}
+
 // CreateToken mocks base method.
 func (m *MockQuerier) CreateToken(ctx context.Context, arg database.CreateTokenParams) error {
 	m.ctrl.T.Helper()
@@ -123,18 +137,33 @@ func (mr *MockQuerierMockRecorder) DeleteFeedFollow(ctx, arg interface{}) *gomoc
 }
 
 // GenerateNextFeedsToFetch mocks base method.
-func (m *MockQuerier) GenerateNextFeedsToFetch(ctx context.Context) ([]database.Feed, error) {
+func (m *MockQuerier) GenerateNextFeedsToFetch(ctx context.Context, limit int32) ([]database.GenerateNextFeedsToFetchRow, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GenerateNextFeedsToFetch", ctx)
-	ret0, _ := ret[0].([]database.Feed)
+	ret := m.ctrl.Call(m, "GenerateNextFeedsToFetch", ctx, limit)
+	ret0, _ := ret[0].([]database.GenerateNextFeedsToFetchRow)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GenerateNextFeedsToFetch indicates an expected call of GenerateNextFeedsToFetch.
-func (mr *MockQuerierMockRecorder) GenerateNextFeedsToFetch(ctx interface{}) *gomock.Call {
+func (mr *MockQuerierMockRecorder) GenerateNextFeedsToFetch(ctx, limit interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GenerateNextFeedsToFetch", reflect.TypeOf((*MockQuerier)(nil).GenerateNextFeedsToFetch), ctx)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GenerateNextFeedsToFetch", reflect.TypeOf((*MockQuerier)(nil).GenerateNextFeedsToFetch), ctx, limit)
+}
+
+// GetPostsFollowedByUser mocks base method.
+func (m *MockQuerier) GetPostsFollowedByUser(ctx context.Context, userID int64) ([]database.Post, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetPostsFollowedByUser", ctx, userID)
+	ret0, _ := ret[0].([]database.Post)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetPostsFollowedByUser indicates an expected call of GetPostsFollowedByUser.
+func (mr *MockQuerierMockRecorder) GetPostsFollowedByUser(ctx, userID interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetPostsFollowedByUser", reflect.TypeOf((*MockQuerier)(nil).GetPostsFollowedByUser), ctx, userID)
 }
 
 // GetUserByEmail mocks base method.
@@ -198,17 +227,17 @@ func (mr *MockQuerierMockRecorder) ListFeeds(ctx interface{}) *gomock.Call {
 }
 
 // MarkFeedFetched mocks base method.
-func (m *MockQuerier) MarkFeedFetched(ctx context.Context, arg database.MarkFeedFetchedParams) error {
+func (m *MockQuerier) MarkFeedFetched(ctx context.Context, id int64) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "MarkFeedFetched", ctx, arg)
+	ret := m.ctrl.Call(m, "MarkFeedFetched", ctx, id)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // MarkFeedFetched indicates an expected call of MarkFeedFetched.
-func (mr *MockQuerierMockRecorder) MarkFeedFetched(ctx, arg interface{}) *gomock.Call {
+func (mr *MockQuerierMockRecorder) MarkFeedFetched(ctx, id interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MarkFeedFetched", reflect.TypeOf((*MockQuerier)(nil).MarkFeedFetched), ctx, arg)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MarkFeedFetched", reflect.TypeOf((*MockQuerier)(nil).MarkFeedFetched), ctx, id)
 }
 
 // UpdateUser mocks base method.

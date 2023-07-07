@@ -8,6 +8,7 @@ import (
 	"os"
 	"strconv"
 	"sync"
+	"time"
 
 	"github.com/StelIify/feedbland/internal/database"
 	"github.com/StelIify/feedbland/internal/mailer"
@@ -95,6 +96,7 @@ func main() {
 		db:       db,
 		mailer:   mailer.NewMailer(cfg.smtp.host, cfg.smtp.port, cfg.smtp.username, cfg.smtp.password, cfg.smtp.sender),
 	}
+	go app.fetchFeedsWorker(10, time.Hour*24)
 
 	if err = app.serve(); err != nil {
 		app.errorLog.Fatal(err)
@@ -114,7 +116,6 @@ func (app *App) routes() http.Handler {
 	r.Delete("/api/v1/feed_follows/{id}", app.deleteFeedFollowHandler)
 	r.Get("/api/v1/feed_follows", app.listFeedFollowHandler)
 	r.Post("/api/v1/tokens/auth", app.authenticateUserHandler)
-	r.Get("/api/v1/scrape_feed", app.scrapeFeedHandler)
 
 	return app.recoverPanic(app.authenticate(r))
 }

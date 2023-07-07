@@ -25,6 +25,17 @@ type FeedFollow struct {
 	UpdatedAt time.Time `json:"updated_at"`
 }
 
+type Post struct {
+	ID          int64     `json:"id"`
+	FeedID      int64     `json:"feed_id"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
+	Title       string    `json:"title"`
+	Url         string    `json:"url"`
+	Description string    `json:"description"`
+	PublishedAt time.Time `json:"published_at"`
+}
+
 type Token struct {
 	Hash   []byte    `json:"hash"`
 	UserID int64     `json:"user_id"`
