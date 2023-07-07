@@ -1,0 +1,55 @@
+basePath: /
+definitions:
+  database.ListFeedsRow:
+    properties:
+      created_at:
+        type: string
+      id:
+        type: integer
+      name:
+        type: string
+      url:
+        type: string
+      user_id:
+        type: integer
+    type: object
+host: localhost:8080
+info:
+  contact: {}
+  description: backend for blog aggregator
+  title: FeedBland
+  version: "1.0"
+paths:
+  /api/v1/feeds:
+    get:
+      description: Get a list of feeds
+      operationId: listFeeds
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/database.ListFeedsRow'
+        "500":
+          description: Internal Server Error
+          schema:
+            type: string
+      summary: List Feeds
+      tags:
+      - Feeds
+  /api/v1/healthcheck:
+    get:
+      description: Perform a health check on the API
+      operationId: healthCheck
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: string
+      summary: Health Check
+      tags:
+      - Health
+swagger: "2.0"

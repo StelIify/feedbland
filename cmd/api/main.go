@@ -8,14 +8,15 @@ import (
 	"os"
 	"strconv"
 	"sync"
-	"time"
 
+	_ "github.com/StelIify/feedbland/docs"
 	"github.com/StelIify/feedbland/internal/database"
 	"github.com/StelIify/feedbland/internal/mailer"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/joho/godotenv"
+	httpSwagger "github.com/swaggo/http-swagger/v2"
 )
 
 type config struct {
@@ -72,6 +73,14 @@ func setupConfig() (config, error) {
 	}
 	return cfg, nil
 }
+
+// @title FeedBland
+// @version 1.0
+// @description backend for blog aggregator
+
+// @host localhost:8080
+// @BasePath /
+
 func main() {
 	erorrLog := log.New(os.Stderr, "ERROR\t", log.Ldate|log.Ltime|log.Lshortfile)
 	infoLog := log.New(os.Stdout, "", log.Ldate|log.Ltime)
@@ -96,7 +105,7 @@ func main() {
 		db:       db,
 		mailer:   mailer.NewMailer(cfg.smtp.host, cfg.smtp.port, cfg.smtp.username, cfg.smtp.password, cfg.smtp.sender),
 	}
-	go app.fetchFeedsWorker(10, time.Hour*24)
+	// go app.fetchFeedsWorker(10, time.Hour*24)
 
 	if err = app.serve(); err != nil {
 		app.errorLog.Fatal(err)
@@ -116,6 +125,8 @@ func (app *App) routes() http.Handler {
 	r.Delete("/api/v1/feed_follows/{id}", app.deleteFeedFollowHandler)
 	r.Get("/api/v1/feed_follows", app.listFeedFollowHandler)
 	r.Post("/api/v1/tokens/auth", app.authenticateUserHandler)
+
+	r.Get("/swagger/*", httpSwagger.Handler(httpSwagger.URL("http://localhost:8080/swagger/doc.json")))
 
 	return app.recoverPanic(app.authenticate(r))
 }

@@ -17,6 +17,13 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
+// @Summary Health Check
+// @Description Perform a health check on the API
+// @ID healthCheck
+// @Tags Health
+// @Produce json
+// @Success 200 {object} string
+// @Router /api/v1/healthcheck [get]
 func (app *App) healthCheckHandler(w http.ResponseWriter, r *http.Request) {
 	msg := map[string]string{"message": "successful response"}
 	err := app.writeJson(w, 200, msg, nil)
@@ -258,6 +265,14 @@ func (app *App) authenticateUserHandler(w http.ResponseWriter, r *http.Request) 
 
 }
 
+// @Summary List Feeds
+// @Description Get a list of feeds
+// @ID listFeeds
+// @Tags Feeds
+// @Produce json
+// @Success 200 {object} database.ListFeedsRow
+// @Failure 500 {object} string
+// @Router /api/v1/feeds [get]
 func (app *App) listFeedsHandler(w http.ResponseWriter, r *http.Request) {
 	feeds, err := app.db.ListFeeds(r.Context())
 	if err != nil {
