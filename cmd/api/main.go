@@ -32,7 +32,7 @@ type App struct {
 	errorLog *log.Logger
 	infoLog  *log.Logger
 	config   config
-	db       *database.Queries
+	db       database.Querier
 	mailer   mailer.Mailer
 	wg       sync.WaitGroup
 }
@@ -109,11 +109,12 @@ func (app *App) routes() http.Handler {
 	r.Post("/api/v1/users", app.createUserHandler)
 	r.Put("/api/v1/users/activated", app.activateUserHandler)
 	r.Post("/api/v1/feeds", app.createFeedHandler)
-	r.Get("/api/v1/feeds", app.getAllFeedsHandler)
+	r.Get("/api/v1/feeds", app.listFeedsHandler)
 	r.Post("/api/v1/feed_follows", app.createFeedFollowHandler)
 	r.Delete("/api/v1/feed_follows/{id}", app.deleteFeedFollowHandler)
 	r.Get("/api/v1/feed_follows", app.listFeedFollowHandler)
 	r.Post("/api/v1/tokens/auth", app.authenticateUserHandler)
+	r.Get("/api/v1/scrape_feed", app.scrapeFeedHandler)
 
 	return app.recoverPanic(app.authenticate(r))
 }

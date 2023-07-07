@@ -7,9 +7,13 @@ sql:
           go:
               sql_package: "pgx/v5"
               emit_json_tags: True
+              emit_interface: True
               out: "internal/database"
               overrides:
                   - db_type: "citext"
                     go_type: "string"
+                  - db_type: "pg_catalog.timestamptz"
+                    nullable: true
+                    go_type: "time.Time"
                   - db_type: "pg_catalog.timestamptz"
                     go_type: "time.Time"
