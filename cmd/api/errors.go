@@ -40,3 +40,12 @@ func (app *App) invalidAuthTokenResponse(w http.ResponseWriter, r *http.Request)
 	message := "ivalid or missing authentication token"
 	app.errorResponse(w, r, http.StatusUnauthorized, message)
 }
+
+func (app *App) authenticationRequiredResponse(w http.ResponseWriter, r *http.Request) {
+	message := "you must be authenicated to access this recourse"
+	app.errorResponse(w, r, http.StatusUnauthorized, message)
+}
+func (app *App) inactiveAccountResponse(w http.ResponseWriter, r *http.Request) {
+	message := "your user account must be activated to access this recourse"
+	app.errorResponse(w, r, http.StatusUnauthorized, message)
+}

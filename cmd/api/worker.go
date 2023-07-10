@@ -37,13 +37,14 @@ func (app *App) fetchFeed(feed database.GenerateNextFeedsToFetchRow) {
 		app.errorLog.Println(err)
 		return
 	}
+	app.infoLog.Printf("on feed %s found %d posts", feed.Name, len(rssFeed.Channel.Item))
 	err = app.db.MarkFeedFetched(context.Background(), feed.ID)
 	if err != nil {
 		app.errorLog.Println(err)
 		return
 	}
 	for _, item := range rssFeed.Channel.Item {
-		pubDate, err := time.Parse(time.RFC1123Z, item.PubDate)
+		pubDate, err := parseDate(item.PubDate)
 		if err != nil {
 			app.errorLog.Println(err)
 			continue
@@ -55,10 +56,29 @@ func (app *App) fetchFeed(feed database.GenerateNextFeedsToFetchRow) {
 			Description: item.Description,
 			PublishedAt: pubDate,
 		})
-		var pg_err *pgconn.PgError
-		if !errors.As(err, &pg_err) && pg_err.Code == pgerrcode.UniqueViolation {
-			app.errorLog.Println(err)
-			continue
+		if err != nil {
+			var pg_err *pgconn.PgError
+			if !errors.As(err, &pg_err) && pg_err.Code == pgerrcode.UniqueViolation {
+				app.errorLog.Println(err)
+				continue
+			}
 		}
 	}
+}
+
+func parseDate(date string) (time.Time, error) {
+	layout1 := time.RFC1123Z
+	pubDate, err := time.Parse(layout1, date)
+	if err == nil {
+		return pubDate, nil
+	}
+
+	layout2 := "Mon, 02 Jan 2006 15:04:05 MST"
+
+	pubDate, err = time.Parse(layout2, date)
+	if err == nil {
+		return pubDate, nil
+	}
+
+	return time.Time{}, err
 }

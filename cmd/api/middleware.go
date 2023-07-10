@@ -1,7 +1,6 @@
 package main
 
 import (
-	"crypto/sha256"
 	"errors"
 	"fmt"
 	"net/http"
@@ -51,7 +50,7 @@ func (app *App) authenticate(next http.Handler) http.Handler {
 			app.invalidAuthTokenResponse(w, r)
 			return
 		}
-		tokenHash := sha256.Sum256([]byte(token))
+		tokenHash := auth.GenerateTokenHash(token)
 		user, err := app.db.GetUserByToken(r.Context(), database.GetUserByTokenParams{
 			Hash:   tokenHash[:],
 			Scope:  auth.ScopeAuthentication,
@@ -77,6 +76,23 @@ func (app *App) authenticate(next http.Handler) http.Handler {
 			Version:      user.Version,
 		}
 		r = app.contextSetUser(r, userdb)
+		next.ServeHTTP(w, r)
+	})
+}
+
+func (app *App) requireAuth(next http.HandlerFunc) http.HandlerFunc {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		user := app.contextGetUser(r)
+
+		if auth.IsAnonymous(user) {
+			app.authenticationRequiredResponse(w, r)
+			return
+		}
+
+		// if !auth.IsActivated(user) {
+		// 	app.inactiveAccountResponse(w, r)
+		// 	return
+		// }
 		next.ServeHTTP(w, r)
 	})
 }

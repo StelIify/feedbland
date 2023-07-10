@@ -9,7 +9,6 @@ order by created_at;
 
 -- name: GenerateNextFeedsToFetch :many
 select id, name, url from feeds
-where last_fetched_at is null or last_fetched_at < now() - interval '1 day'
 order by last_fetched_at asc nulls first
 limit $1;
 

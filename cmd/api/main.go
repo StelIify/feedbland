@@ -8,6 +8,7 @@ import (
 	"os"
 	"strconv"
 	"sync"
+	"time"
 
 	_ "github.com/StelIify/feedbland/docs"
 	"github.com/StelIify/feedbland/internal/database"
@@ -105,7 +106,7 @@ func main() {
 		db:       db,
 		mailer:   mailer.NewMailer(cfg.smtp.host, cfg.smtp.port, cfg.smtp.username, cfg.smtp.password, cfg.smtp.sender),
 	}
-	// go app.fetchFeedsWorker(10, time.Hour*24)
+	go app.fetchFeedsWorker(10, time.Hour*24)
 
 	if err = app.serve(); err != nil {
 		app.errorLog.Fatal(err)
@@ -117,14 +118,19 @@ func (app *App) routes() http.Handler {
 	r.Use(middleware.Logger)
 
 	r.Get("/api/v1/healthcheck", app.healthCheckHandler)
+
 	r.Post("/api/v1/users", app.createUserHandler)
 	r.Put("/api/v1/users/activated", app.activateUserHandler)
-	r.Post("/api/v1/feeds", app.createFeedHandler)
-	r.Get("/api/v1/feeds", app.listFeedsHandler)
-	r.Post("/api/v1/feed_follows", app.createFeedFollowHandler)
-	r.Delete("/api/v1/feed_follows/{id}", app.deleteFeedFollowHandler)
-	r.Get("/api/v1/feed_follows", app.listFeedFollowHandler)
 	r.Post("/api/v1/tokens/auth", app.authenticateUserHandler)
+
+	r.Post("/api/v1/feeds", app.requireAuth(app.createFeedHandler))
+	r.Get("/api/v1/feeds", app.listFeedsHandler)
+
+	r.Post("/api/v1/feed_follows", app.requireAuth(app.createFeedFollowHandler))
+	r.Delete("/api/v1/feed_follows/{id}", app.requireAuth(app.deleteFeedFollowHandler))
+	r.Get("/api/v1/feed_follows", app.listFeedFollowHandler)
+
+	r.Get("/api/v1/posts", app.requireAuth(app.listPostsFollowedByUser))
 
 	r.Get("/swagger/*", httpSwagger.Handler(httpSwagger.URL("http://localhost:8080/swagger/doc.json")))
 
