@@ -42,7 +42,7 @@ func (app *App) invalidAuthTokenResponse(w http.ResponseWriter, r *http.Request)
 }
 
 func (app *App) authenticationRequiredResponse(w http.ResponseWriter, r *http.Request) {
-	message := "you must be authenicated to access this recourse"
+	message := "you must be authenticated to access this recourse"
 	app.errorResponse(w, r, http.StatusUnauthorized, message)
 }
 func (app *App) inactiveAccountResponse(w http.ResponseWriter, r *http.Request) {

@@ -8,13 +8,13 @@ import (
 	"os"
 	"strconv"
 	"sync"
-	"time"
 
 	_ "github.com/StelIify/feedbland/docs"
 	"github.com/StelIify/feedbland/internal/database"
 	"github.com/StelIify/feedbland/internal/mailer"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	"github.com/go-chi/cors"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/joho/godotenv"
 	httpSwagger "github.com/swaggo/http-swagger/v2"
@@ -106,7 +106,7 @@ func main() {
 		db:       db,
 		mailer:   mailer.NewMailer(cfg.smtp.host, cfg.smtp.port, cfg.smtp.username, cfg.smtp.password, cfg.smtp.sender),
 	}
-	go app.fetchFeedsWorker(10, time.Hour*24)
+	// go app.fetchFeedsWorker(10, time.Hour*24)
 
 	if err = app.serve(); err != nil {
 		app.errorLog.Fatal(err)
@@ -115,7 +115,17 @@ func main() {
 
 func (app *App) routes() http.Handler {
 	r := chi.NewRouter()
+
 	r.Use(middleware.Logger)
+
+	r.Use(cors.Handler(cors.Options{
+		AllowedOrigins:   []string{"https://*", "http://*"},
+		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE"},
+		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-CSRF-Token"},
+		ExposedHeaders:   []string{"Link"},
+		AllowCredentials: false,
+		MaxAge:           300,
+	}))
 
 	r.Get("/api/v1/healthcheck", app.healthCheckHandler)
 
@@ -131,6 +141,7 @@ func (app *App) routes() http.Handler {
 	r.Get("/api/v1/feed_follows", app.listFeedFollowHandler)
 
 	r.Get("/api/v1/posts", app.requireAuth(app.listPostsFollowedByUser))
+	r.Get("/api/v1/allposts", app.listPosts)
 
 	r.Get("/swagger/*", httpSwagger.Handler(httpSwagger.URL("http://localhost:8080/swagger/doc.json")))
 

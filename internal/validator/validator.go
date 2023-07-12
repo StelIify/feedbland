@@ -37,3 +37,12 @@ func (v *Validator) Check(ok bool, key, message string) {
 func (v *Validator) Matches(value string, rx *regexp.Regexp) bool {
 	return rx.MatchString(value)
 }
+
+func (v *Validator) In(value string, list []string) bool {
+	for _, item := range list {
+		if value == item {
+			return true
+		}
+	}
+	return false
+}

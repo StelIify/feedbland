@@ -292,6 +292,7 @@ func (app *App) deleteFeedFollowHandler(w http.ResponseWriter, r *http.Request) 
 		FeedID: id,
 	})
 }
+
 func (app *App) listFeedFollowHandler(w http.ResponseWriter, r *http.Request) {
 	feed_follows, err := app.db.ListFeedFollow(r.Context())
 	if err != nil {
@@ -310,6 +311,41 @@ func (app *App) listPostsFollowedByUser(w http.ResponseWriter, r *http.Request) 
 	posts, err := app.db.GetPostsFollowedByUser(r.Context(), user.ID)
 	if err != nil {
 		app.serverErrorResponse(w, r, err)
+		return
+	}
+	err = app.writeJson(w, http.StatusOK, envelope{"posts": posts}, nil)
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+		return
+	}
+}
+
+func (app *App) listPosts(w http.ResponseWriter, r *http.Request) {
+	var input struct {
+		Title string
+		validator.Filters
+	}
+	v := validator.NewValidator()
+	qs := r.URL.Query()
+
+	input.Title = app.readString(qs, "title", "")
+	input.Filters.Page = app.readInt(qs, "page", 1, v)
+	input.Filters.PageSize = app.readInt(qs, "page_size", 20, v)
+	input.Filters.Sort = app.readString(qs, "sort", "published_at")
+	input.Filters.SortSafelist = []string{"id", "title", "published_at", "-id", "-title", "-published_at"}
+
+	posts, err := app.db.ListPosts(r.Context(), database.ListPostsParams{
+		PlaintoTsquery: input.Title,
+		Limit:          int32(input.Filters.Limit()),
+		Offset:         int32(input.Filters.Offset()),
+	})
+
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+		return
+	}
+	if validator.ValidateFilters(v, input.Filters); !v.Valid() {
+		app.failedValidationResponse(w, r, v.Errors)
 		return
 	}
 	err = app.writeJson(w, http.StatusOK, envelope{"posts": posts}, nil)

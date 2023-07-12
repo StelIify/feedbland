@@ -22,6 +22,7 @@ type Querier interface {
 	GetUserByToken(ctx context.Context, arg GetUserByTokenParams) (GetUserByTokenRow, error)
 	ListFeedFollow(ctx context.Context) ([]FeedFollow, error)
 	ListFeeds(ctx context.Context) ([]ListFeedsRow, error)
+	ListPosts(ctx context.Context, arg ListPostsParams) ([]Post, error)
 	MarkFeedFetched(ctx context.Context, id int64) error
 	UpdateUser(ctx context.Context, arg UpdateUserParams) (int32, error)
 }

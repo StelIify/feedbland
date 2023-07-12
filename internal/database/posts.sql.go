@@ -69,3 +69,45 @@ func (q *Queries) GetPostsFollowedByUser(ctx context.Context, userID int64) ([]P
 	}
 	return items, nil
 }
+
+const listPosts = `-- name: ListPosts :many
+select id, feed_id, created_at, updated_at, title, url, description, published_at from posts
+where (to_tsvector('simple', title) @@ plainto_tsquery('simple', $1) or $1 = '')
+order by published_at desc
+limit $2 offset $3
+`
+
+type ListPostsParams struct {
+	PlaintoTsquery string `json:"plainto_tsquery"`
+	Limit          int32  `json:"limit"`
+	Offset         int32  `json:"offset"`
+}
+
+func (q *Queries) ListPosts(ctx context.Context, arg ListPostsParams) ([]Post, error) {
+	rows, err := q.db.Query(ctx, listPosts, arg.PlaintoTsquery, arg.Limit, arg.Offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Post
+	for rows.Next() {
+		var i Post
+		if err := rows.Scan(
+			&i.ID,
+			&i.FeedID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.Title,
+			&i.Url,
+			&i.Description,
+			&i.PublishedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
