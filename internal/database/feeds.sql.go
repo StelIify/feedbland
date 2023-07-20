@@ -11,15 +11,17 @@ import (
 )
 
 const createFeed = `-- name: CreateFeed :one
-insert into feeds (name, url, user_id)
-values($1, $2, $3)
+insert into feeds (name, description, url, user_id, image_id)
+values($1, $2, $3, $4, $5)
 returning id, created_at, name, url, user_id
 `
 
 type CreateFeedParams struct {
-	Name   string `json:"name"`
-	Url    string `json:"url"`
-	UserID int64  `json:"user_id"`
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	Url         string `json:"url"`
+	UserID      int64  `json:"user_id"`
+	ImageID     int64  `json:"image_id"`
 }
 
 type CreateFeedRow struct {
@@ -31,7 +33,13 @@ type CreateFeedRow struct {
 }
 
 func (q *Queries) CreateFeed(ctx context.Context, arg CreateFeedParams) (CreateFeedRow, error) {
-	row := q.db.QueryRow(ctx, createFeed, arg.Name, arg.Url, arg.UserID)
+	row := q.db.QueryRow(ctx, createFeed,
+		arg.Name,
+		arg.Description,
+		arg.Url,
+		arg.UserID,
+		arg.ImageID,
+	)
 	var i CreateFeedRow
 	err := row.Scan(
 		&i.ID,
@@ -76,7 +84,8 @@ func (q *Queries) GenerateNextFeedsToFetch(ctx context.Context, limit int32) ([]
 }
 
 const listFeeds = `-- name: ListFeeds :many
-select id, created_at, name, url, user_id from feeds
+select f.id, f.created_at, f.name, f.url, f.user_id, images.url as image_url, images.name as image_alt from feeds f
+join images on images.id=f.image_id
 order by created_at
 `
 
@@ -86,6 +95,8 @@ type ListFeedsRow struct {
 	Name      string    `json:"name"`
 	Url       string    `json:"url"`
 	UserID    int64     `json:"user_id"`
+	ImageUrl  string    `json:"image_url"`
+	ImageAlt  string    `json:"image_alt"`
 }
 
 func (q *Queries) ListFeeds(ctx context.Context) ([]ListFeedsRow, error) {
@@ -103,6 +114,8 @@ func (q *Queries) ListFeeds(ctx context.Context) ([]ListFeedsRow, error) {
 			&i.Name,
 			&i.Url,
 			&i.UserID,
+			&i.ImageUrl,
+			&i.ImageAlt,
 		); err != nil {
 			return nil, err
 		}

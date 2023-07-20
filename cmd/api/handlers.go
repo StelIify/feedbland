@@ -1,14 +1,23 @@
 package main
 
 import (
+	"bytes"
+	"context"
 	"errors"
+	"fmt"
+	"io"
 	"net/http"
+	"net/url"
+	"path"
 	"strconv"
 	"time"
 
 	"github.com/StelIify/feedbland/internal/auth"
+	"github.com/StelIify/feedbland/internal/data"
 	"github.com/StelIify/feedbland/internal/database"
 	"github.com/StelIify/feedbland/internal/validator"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgerrcode"
 	"github.com/jackc/pgx/v5"
@@ -172,7 +181,13 @@ func (app *App) authenticateUserHandler(w http.ResponseWriter, r *http.Request) 
 		app.serverErrorResponse(w, r, err)
 		return
 	}
-
+	// cookie := http.Cookie{
+	// 	Name:     "auth_token",
+	// 	Value:    token.Plaintext,
+	// 	Expires:  token.Expiry,
+	// 	HttpOnly: true,
+	// }
+	// http.SetCookie(w, &cookie)
 	err = app.writeJson(w, http.StatusCreated, envelope{"auth_token": token}, nil)
 
 	if err != nil {
@@ -204,19 +219,65 @@ func (app *App) listFeedsHandler(w http.ResponseWriter, r *http.Request) {
 
 func (app *App) createFeedHandler(w http.ResponseWriter, r *http.Request) {
 	var input struct {
-		Name string `json:"name"`
-		Url  string `json:"url"`
+		Url string `json:"url"`
 	}
-
 	err := app.readJSON(w, r, &input)
-
 	if err != nil {
 		app.badRequestResponse(w, r, err)
 		return
 	}
+	rssFeed, err := UrlToFeed(input.Url)
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+		return
+	}
+	if rssFeed.Channel.Image.URL == "" {
+		// rss feed does not contain image informatin
+		// we need to scrape it
+		app.errorLog.Println("rss feed does not have image information")
+		return
+	}
+	//download image
+	response, err := http.Get(rssFeed.Channel.Image.URL)
+	if err != nil {
+		fmt.Println("get request error", err)
+	}
+	defer response.Body.Close()
+	imgBytes, err := io.ReadAll(response.Body)
+	if err != nil {
+		fmt.Println("read response body error", err)
+	}
+	//save image to s3 bucket, create image from returned url
+	u, err := url.Parse(rssFeed.Channel.Image.URL)
+	if err != nil {
+		app.errorLog.Println(err)
+		return
+	}
+	filename := path.Base(u.Path)
+	feedsStore := fmt.Sprintf("%s/%s", "feedsImg", filename)
+	result, err := app.uploader.Upload(context.TODO(), &s3.PutObjectInput{
+		Bucket: aws.String("feebland"),
+		Key:    aws.String(feedsStore),
+		Body:   bytes.NewReader(imgBytes),
+		ACL:    "public-read",
+	})
+	if err != nil {
+		app.errorLog.Println(err)
+	}
+	// create image
+	image_id, err := app.db.CreateImage(r.Context(), database.CreateImageParams{
+		Url:  result.Location,
+		Name: rssFeed.Channel.Image.Title,
+	})
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+		return
+	}
 	feed := &database.Feed{
-		Name: input.Name,
-		Url:  input.Url,
+		Name:        rssFeed.Channel.Title,
+		Description: rssFeed.Channel.Description,
+		ImageID:     image_id,
+		Url:         input.Url,
 	}
 	v := validator.NewValidator()
 	if validator.ValidateFeed(v, feed); !v.Valid() {
@@ -225,9 +286,11 @@ func (app *App) createFeedHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	user := app.contextGetUser(r)
 	new_feed, err := app.db.CreateFeed(r.Context(), database.CreateFeedParams{
-		Name:   input.Name,
-		Url:    input.Url,
-		UserID: user.ID,
+		Name:        rssFeed.Channel.Title,
+		Description: rssFeed.Channel.Description,
+		Url:         input.Url,
+		UserID:      user.ID,
+		ImageID:     image_id,
 	})
 
 	if err != nil {
@@ -321,34 +384,29 @@ func (app *App) listPostsFollowedByUser(w http.ResponseWriter, r *http.Request) 
 }
 
 func (app *App) listPosts(w http.ResponseWriter, r *http.Request) {
-	var input struct {
-		Title string
-		validator.Filters
-	}
 	v := validator.NewValidator()
 	qs := r.URL.Query()
+	filters := data.NewFilters(qs, v)
 
-	input.Title = app.readString(qs, "title", "")
-	input.Filters.Page = app.readInt(qs, "page", 1, v)
-	input.Filters.PageSize = app.readInt(qs, "page_size", 20, v)
-	input.Filters.Sort = app.readString(qs, "sort", "published_at")
-	input.Filters.SortSafelist = []string{"id", "title", "published_at", "-id", "-title", "-published_at"}
-
+	if validator.ValidateFilters(v, filters.Offset, filters.Limit, filters.Sort, filters.SortSafelist); !v.Valid() {
+		app.failedValidationResponse(w, r, v.Errors)
+		return
+	}
 	posts, err := app.db.ListPosts(r.Context(), database.ListPostsParams{
-		PlaintoTsquery: input.Title,
-		Limit:          int32(input.Filters.Limit()),
-		Offset:         int32(input.Filters.Offset()),
+		PlaintoTsquery: filters.Title,
+		Limit:          int32(filters.Limit),
+		Offset:         int32(filters.Offset),
 	})
-
 	if err != nil {
 		app.serverErrorResponse(w, r, err)
 		return
 	}
-	if validator.ValidateFilters(v, input.Filters); !v.Valid() {
-		app.failedValidationResponse(w, r, v.Errors)
-		return
+	count, err := app.db.CountPosts(r.Context(), filters.Title)
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
 	}
-	err = app.writeJson(w, http.StatusOK, envelope{"posts": posts}, nil)
+	metadata := data.NewMetadata(count, len(posts), r.URL.Path, filters)
+	err = app.writeJson(w, http.StatusOK, envelope{"posts": posts, "metadata": metadata}, nil)
 	if err != nil {
 		app.serverErrorResponse(w, r, err)
 		return

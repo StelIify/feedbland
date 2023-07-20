@@ -37,12 +37,19 @@ func (app *App) authenticate(next http.Handler) http.Handler {
 			next.ServeHTTP(w, r)
 			return
 		}
+		// cookie, err := r.Cookie("auth_token")
+		// if err != nil {
+		// 	r = app.contextSetUser(r, auth.AnonymousUser)
+		// 	next.ServeHTTP(w, r)
+		// 	return
+		// }
 
 		headerParts := strings.Split(autorizationHeader, " ")
 		if len(headerParts) != 2 || headerParts[0] != "Bearer" {
 			app.invalidCredentialsResponse(w, r)
 			return
 		}
+		// token := cookie.Value
 		token := headerParts[1]
 
 		v := validator.NewValidator()

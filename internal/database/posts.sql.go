@@ -10,6 +10,18 @@ import (
 	"time"
 )
 
+const countPosts = `-- name: CountPosts :one
+select count(*) from posts
+where (to_tsvector('simple', title) @@ plainto_tsquery('simple', $1) or $1 = '')
+`
+
+func (q *Queries) CountPosts(ctx context.Context, plaintoTsquery string) (int64, error) {
+	row := q.db.QueryRow(ctx, countPosts, plaintoTsquery)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const createPost = `-- name: CreatePost :exec
 insert into posts (feed_id, title, url, description, published_at)
 values ($1, $2, $3, $4, $5)
@@ -35,7 +47,7 @@ func (q *Queries) CreatePost(ctx context.Context, arg CreatePostParams) error {
 }
 
 const getPostsFollowedByUser = `-- name: GetPostsFollowedByUser :many
-select p.id, p.feed_id, p.created_at, p.updated_at, p.title, p.url, p.description, p.published_at from posts p 
+select p.id, p.feed_id, p.created_at, p.updated_at, p.title, p.url, p.description, p.published_at, p.image_id from posts p 
 join feed_follows fw on fw.feed_id=p.feed_id
 where fw.user_id = $1
 order by p.published_at desc
@@ -59,6 +71,7 @@ func (q *Queries) GetPostsFollowedByUser(ctx context.Context, userID int64) ([]P
 			&i.Url,
 			&i.Description,
 			&i.PublishedAt,
+			&i.ImageID,
 		); err != nil {
 			return nil, err
 		}
@@ -71,7 +84,9 @@ func (q *Queries) GetPostsFollowedByUser(ctx context.Context, userID int64) ([]P
 }
 
 const listPosts = `-- name: ListPosts :many
-select id, feed_id, created_at, updated_at, title, url, description, published_at from posts
+select p.id, f.name as feed_name, p.created_at, p.updated_at, p.title, p.url, p.description, p.published_at
+from posts p
+join feeds f on p.feed_id=f.id
 where (to_tsvector('simple', title) @@ plainto_tsquery('simple', $1) or $1 = '')
 order by published_at desc
 limit $2 offset $3
@@ -83,18 +98,29 @@ type ListPostsParams struct {
 	Offset         int32  `json:"offset"`
 }
 
-func (q *Queries) ListPosts(ctx context.Context, arg ListPostsParams) ([]Post, error) {
+type ListPostsRow struct {
+	ID          int64     `json:"id"`
+	FeedName    string    `json:"feed_name"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
+	Title       string    `json:"title"`
+	Url         string    `json:"url"`
+	Description string    `json:"description"`
+	PublishedAt time.Time `json:"published_at"`
+}
+
+func (q *Queries) ListPosts(ctx context.Context, arg ListPostsParams) ([]ListPostsRow, error) {
 	rows, err := q.db.Query(ctx, listPosts, arg.PlaintoTsquery, arg.Limit, arg.Offset)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []Post
+	var items []ListPostsRow
 	for rows.Next() {
-		var i Post
+		var i ListPostsRow
 		if err := rows.Scan(
 			&i.ID,
-			&i.FeedID,
+			&i.FeedName,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.Title,

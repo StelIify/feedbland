@@ -9,7 +9,13 @@ where fw.user_id = $1
 order by p.published_at desc;
 
 -- name: ListPosts :many
-select * from posts
+select p.id, f.name as feed_name, p.created_at, p.updated_at, p.title, p.url, p.description, p.published_at
+from posts p
+join feeds f on p.feed_id=f.id
 where (to_tsvector('simple', title) @@ plainto_tsquery('simple', $1) or $1 = '')
 order by published_at desc
 limit $2 offset $3;
+
+-- name: CountPosts :one
+select count(*) from posts
+where (to_tsvector('simple', title) @@ plainto_tsquery('simple', $1) or $1 = '');

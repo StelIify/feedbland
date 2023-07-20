@@ -16,11 +16,21 @@ type Feed struct {
 	Url           string    `json:"url"`
 	UserID        int64     `json:"user_id"`
 	LastFetchedAt time.Time `json:"last_fetched_at"`
+	ImageID       int64     `json:"image_id"`
+	Description   string    `json:"description"`
 }
 
 type FeedFollow struct {
 	FeedID    int64     `json:"feed_id"`
 	UserID    int64     `json:"user_id"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+type Image struct {
+	ID        int64     `json:"id"`
+	Url       string    `json:"url"`
+	Name      string    `json:"name"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 }
@@ -34,6 +44,7 @@ type Post struct {
 	Url         string    `json:"url"`
 	Description string    `json:"description"`
 	PublishedAt time.Time `json:"published_at"`
+	ImageID     int64     `json:"image_id"`
 }
 
 type Token struct {

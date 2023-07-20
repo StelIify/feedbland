@@ -5,13 +5,18 @@ import (
 	"errors"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"strconv"
+	"strings"
 	"sync"
 
 	_ "github.com/StelIify/feedbland/docs"
 	"github.com/StelIify/feedbland/internal/database"
 	"github.com/StelIify/feedbland/internal/mailer"
+	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/feature/s3/manager"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
@@ -20,7 +25,7 @@ import (
 	httpSwagger "github.com/swaggo/http-swagger/v2"
 )
 
-type config struct {
+type cfg struct {
 	port    int
 	db_conn string
 	smtp    struct {
@@ -34,20 +39,21 @@ type config struct {
 type App struct {
 	errorLog *log.Logger
 	infoLog  *log.Logger
-	config   config
+	cfg      cfg
 	db       database.Querier
 	mailer   mailer.Mailer
+	uploader *manager.Uploader
 	wg       sync.WaitGroup
 }
 
-func setupConfig() (config, error) {
+func setupConfig() (cfg, error) {
 	godotenv.Load()
 
 	portStr := os.Getenv("server_port")
 	port, _ := strconv.Atoi(portStr)
 	dbUrl := os.Getenv("db_conn")
 	if dbUrl == "" {
-		return config{}, errors.New("db_conn was not found in the environment variables")
+		return cfg{}, errors.New("db_conn was not found in the environment variables")
 	}
 	smtpHost := os.Getenv("smtp_host")
 	smtpPortStr := os.Getenv("smtp_port")
@@ -55,7 +61,7 @@ func setupConfig() (config, error) {
 	smtpUsername := os.Getenv("smtp_username")
 	smtpPassword := os.Getenv("smtp_password")
 	smtpSender := os.Getenv("smtp_sender")
-	cfg := config{
+	cfg := cfg{
 		port:    port,
 		db_conn: dbUrl,
 		smtp: struct {
@@ -99,11 +105,21 @@ func main() {
 
 	db := database.New(dbpool)
 
+	//aws s3 setup
+	awsConfig, err := config.LoadDefaultConfig(context.TODO())
+	if err != nil {
+		log.Printf("error: %v", err)
+		return
+	}
+	client := s3.NewFromConfig(awsConfig)
+	uploader := manager.NewUploader(client)
+
 	app := &App{
-		config:   cfg,
+		cfg:      cfg,
 		errorLog: erorrLog,
 		infoLog:  infoLog,
 		db:       db,
+		uploader: uploader,
 		mailer:   mailer.NewMailer(cfg.smtp.host, cfg.smtp.port, cfg.smtp.username, cfg.smtp.password, cfg.smtp.sender),
 	}
 	// go app.fetchFeedsWorker(10, time.Hour*24)
@@ -111,6 +127,25 @@ func main() {
 	if err = app.serve(); err != nil {
 		app.errorLog.Fatal(err)
 	}
+}
+func resolveURL(baseURL *url.URL, imageURL string) string {
+	imageURL = strings.TrimSpace(imageURL)
+	if imageURL == "" {
+		return ""
+	}
+
+	parsedURL, err := url.Parse(imageURL)
+	if err != nil {
+		return ""
+	}
+
+	// Check if the URL is relative
+	if parsedURL.Scheme == "" && parsedURL.Host == "" {
+		resolvedURL := baseURL.ResolveReference(parsedURL)
+		return resolvedURL.String()
+	}
+
+	return imageURL
 }
 
 func (app *App) routes() http.Handler {

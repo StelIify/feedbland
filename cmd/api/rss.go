@@ -8,13 +8,16 @@ import (
 
 type RssFeed struct {
 	XMLName xml.Name `xml:"rss"`
-	Text    string   `xml:",chardata"`
 	Version string   `xml:"version,attr"`
 	Atom    string   `xml:"atom,attr"`
 	Channel struct {
-		Text  string `xml:",chardata"`
-		Title string `xml:"title"`
-		Item  []struct {
+		Title       string `xml:"title"`
+		Description string `xml:"description"`
+		Image       struct {
+			URL   string `xml:"url"`
+			Title string `xml:"title"`
+		} `xml:"image"`
+		Item []struct {
 			Text        string `xml:",chardata"`
 			Title       string `xml:"title"`
 			Link        string `xml:"link"`
@@ -24,7 +27,14 @@ type RssFeed struct {
 	} `xml:"channel"`
 }
 
-func urlToFeed(url string) (RssFeed, error) {
+type RssFeedName struct {
+	Channel struct {
+		Title       string `xml:"title"`
+		Description string `xml:"description"`
+	} `xml:"channel"`
+}
+
+func UrlToFeed(url string) (RssFeed, error) {
 	client := http.Client{Timeout: time.Second * 20}
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
@@ -43,4 +53,25 @@ func urlToFeed(url string) (RssFeed, error) {
 		return RssFeed{}, err
 	}
 	return rssFeed, nil
+}
+
+func UrlToRssFeedName(url string) (RssFeedName, error) {
+	client := http.Client{Timeout: time.Second * 20}
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return RssFeedName{}, err
+	}
+	response, err := client.Do(req)
+	if err != nil {
+		return RssFeedName{}, err
+	}
+	defer response.Body.Close()
+
+	var rssFeedName RssFeedName
+
+	err = xml.NewDecoder(response.Body).Decode(&rssFeedName)
+	if err != nil {
+		return RssFeedName{}, err
+	}
+	return rssFeedName, nil
 }

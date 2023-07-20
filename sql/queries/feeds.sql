@@ -1,10 +1,11 @@
 -- name: CreateFeed :one
-insert into feeds (name, url, user_id)
-values($1, $2, $3)
+insert into feeds (name, description, url, user_id, image_id)
+values($1, $2, $3, $4, $5)
 returning id, created_at, name, url, user_id;
 
 -- name: ListFeeds :many
-select id, created_at, name, url, user_id from feeds
+select f.id, f.created_at, f.name, f.url, f.user_id, images.url as image_url, images.name as image_alt from feeds f
+join images on images.id=f.image_id
 order by created_at;
 
 -- name: GenerateNextFeedsToFetch :many

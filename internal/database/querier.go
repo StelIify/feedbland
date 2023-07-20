@@ -9,8 +9,10 @@ import (
 )
 
 type Querier interface {
+	CountPosts(ctx context.Context, plaintoTsquery string) (int64, error)
 	CreateFeed(ctx context.Context, arg CreateFeedParams) (CreateFeedRow, error)
 	CreateFeedFollow(ctx context.Context, arg CreateFeedFollowParams) (FeedFollow, error)
+	CreateImage(ctx context.Context, arg CreateImageParams) (int64, error)
 	CreatePost(ctx context.Context, arg CreatePostParams) error
 	CreateToken(ctx context.Context, arg CreateTokenParams) error
 	CreateUser(ctx context.Context, arg CreateUserParams) (CreateUserRow, error)
@@ -22,7 +24,7 @@ type Querier interface {
 	GetUserByToken(ctx context.Context, arg GetUserByTokenParams) (GetUserByTokenRow, error)
 	ListFeedFollow(ctx context.Context) ([]FeedFollow, error)
 	ListFeeds(ctx context.Context) ([]ListFeedsRow, error)
-	ListPosts(ctx context.Context, arg ListPostsParams) ([]Post, error)
+	ListPosts(ctx context.Context, arg ListPostsParams) ([]ListPostsRow, error)
 	MarkFeedFetched(ctx context.Context, id int64) error
 	UpdateUser(ctx context.Context, arg UpdateUserParams) (int32, error)
 }

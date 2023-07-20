@@ -1,15 +1,27 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"fmt"
+	"io"
+	"log"
+	"net/http"
+	"net/url"
+	"path"
+	"strings"
 	"time"
 
+	"github.com/PuerkitoBio/goquery"
 	"github.com/StelIify/feedbland/internal/database"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/jackc/pgerrcode"
 	"github.com/jackc/pgx/v5/pgconn"
 )
 
+// todo some feeds could have image field in the channel, if image url != nil we save it to the db
 func (app *App) fetchFeedsWorker(concurrentWorkers int, fetchInterval time.Duration) {
 	app.infoLog.Printf("Fetching feeds on %d workers every %v duration", concurrentWorkers, fetchInterval)
 
@@ -25,14 +37,13 @@ func (app *App) fetchFeedsWorker(concurrentWorkers int, fetchInterval time.Durat
 			go app.fetchFeed(feed)
 		}
 		app.wg.Wait()
-
 	}
 }
 
 func (app *App) fetchFeed(feed database.GenerateNextFeedsToFetchRow) {
 	defer app.wg.Done()
 
-	rssFeed, err := urlToFeed(feed.Url)
+	rssFeed, err := UrlToFeed(feed.Url)
 	if err != nil {
 		app.errorLog.Println(err)
 		return
@@ -81,4 +92,58 @@ func parseDate(date string) (time.Time, error) {
 	}
 
 	return time.Time{}, err
+}
+
+func (app *App) fetchImage() {
+	response, err := http.Get("https://blog.boot.dev/")
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer response.Body.Close()
+
+	// Parse the HTML document
+	doc, err := goquery.NewDocumentFromReader(response.Body)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	baseURL, err := url.Parse(response.Request.URL.String())
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// Find all image elements in the document
+	doc.Find("img").Each(func(index int, element *goquery.Selection) {
+		imageURL, exists := element.Attr("src")
+		if exists {
+			absoluteURL := resolveURL(baseURL, imageURL)
+			if strings.Contains(strings.ToLower(absoluteURL), "logo") {
+				fmt.Println("Image URL:", absoluteURL)
+				response, err := http.Get(absoluteURL)
+				if err != nil {
+					fmt.Println("get request error", err)
+				}
+				defer response.Body.Close()
+				imgBytes, err := io.ReadAll(response.Body)
+				if err != nil {
+					fmt.Println("read response body error", err)
+				}
+				parsedUrl, err := url.Parse(absoluteURL)
+				if err != nil {
+					fmt.Println("url parsing error", err)
+				}
+				filePath := path.Base(parsedUrl.Path)
+				result, err := app.uploader.Upload(context.TODO(), &s3.PutObjectInput{
+					Bucket: aws.String("feebland"),
+					Key:    aws.String(filePath),
+					Body:   bytes.NewReader(imgBytes),
+					ACL:    "public-read",
+				})
+				if err != nil {
+					fmt.Println("file upload error", err)
+				}
+				fmt.Println(result)
+			}
+		}
+	})
 }
