@@ -7,6 +7,9 @@ package database
 
 import (
 	"context"
+	"time"
+
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const createFeedFollow = `-- name: CreateFeedFollow :one
@@ -48,23 +51,39 @@ func (q *Queries) DeleteFeedFollow(ctx context.Context, arg DeleteFeedFollowPara
 }
 
 const listFeedFollow = `-- name: ListFeedFollow :many
-select feed_id, user_id, created_at, updated_at from feed_follows
+select f.id, f.created_at, f.name, f.description,
+coalesce(img.url, 'https://feebland.s3.eu-west-3.amazonaws.com/feedsImg/default-feed-image.jpg') as image_url, coalesce(img.name, 'default image') as image_alt from feed_follows fw
+join feeds f on f.id = fw.feed_id
+left join images img on img.id=f.image_id
+where fw.user_id=$1
+order by fw.created_at desc
 `
 
-func (q *Queries) ListFeedFollow(ctx context.Context) ([]FeedFollow, error) {
-	rows, err := q.db.Query(ctx, listFeedFollow)
+type ListFeedFollowRow struct {
+	ID          int64       `json:"id"`
+	CreatedAt   time.Time   `json:"created_at"`
+	Name        string      `json:"name"`
+	Description pgtype.Text `json:"description"`
+	ImageUrl    string      `json:"image_url"`
+	ImageAlt    string      `json:"image_alt"`
+}
+
+func (q *Queries) ListFeedFollow(ctx context.Context, userID int64) ([]ListFeedFollowRow, error) {
+	rows, err := q.db.Query(ctx, listFeedFollow, userID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []FeedFollow
+	var items []ListFeedFollowRow
 	for rows.Next() {
-		var i FeedFollow
+		var i ListFeedFollowRow
 		if err := rows.Scan(
-			&i.FeedID,
-			&i.UserID,
+			&i.ID,
 			&i.CreatedAt,
-			&i.UpdatedAt,
+			&i.Name,
+			&i.Description,
+			&i.ImageUrl,
+			&i.ImageAlt,
 		); err != nil {
 			return nil, err
 		}

@@ -12,6 +12,7 @@ import (
 	"sync"
 
 	_ "github.com/StelIify/feedbland/docs"
+	"github.com/StelIify/feedbland/internal/data"
 	"github.com/StelIify/feedbland/internal/database"
 	"github.com/StelIify/feedbland/internal/mailer"
 	"github.com/aws/aws-sdk-go-v2/config"
@@ -37,13 +38,14 @@ type cfg struct {
 	}
 }
 type App struct {
-	errorLog *log.Logger
-	infoLog  *log.Logger
-	cfg      cfg
-	db       database.Querier
-	mailer   mailer.Mailer
-	uploader *manager.Uploader
-	wg       sync.WaitGroup
+	errorLog      *log.Logger
+	infoLog       *log.Logger
+	cfg           cfg
+	db            database.Querier
+	customQueries *data.CustomQueries
+	mailer        mailer.Mailer
+	uploader      *manager.Uploader
+	wg            sync.WaitGroup
 }
 
 func setupConfig() (cfg, error) {
@@ -104,6 +106,7 @@ func main() {
 	defer dbpool.Close()
 
 	db := database.New(dbpool)
+	customQueries := data.NewCustomQueries(dbpool)
 
 	//aws s3 setup
 	awsConfig, err := config.LoadDefaultConfig(context.TODO())
@@ -115,12 +118,13 @@ func main() {
 	uploader := manager.NewUploader(client)
 
 	app := &App{
-		cfg:      cfg,
-		errorLog: erorrLog,
-		infoLog:  infoLog,
-		db:       db,
-		uploader: uploader,
-		mailer:   mailer.NewMailer(cfg.smtp.host, cfg.smtp.port, cfg.smtp.username, cfg.smtp.password, cfg.smtp.sender),
+		cfg:           cfg,
+		errorLog:      erorrLog,
+		infoLog:       infoLog,
+		db:            db,
+		customQueries: customQueries,
+		uploader:      uploader,
+		mailer:        mailer.NewMailer(cfg.smtp.host, cfg.smtp.port, cfg.smtp.username, cfg.smtp.password, cfg.smtp.sender),
 	}
 	// go app.fetchFeedsWorker(10, time.Hour*24)
 
@@ -173,10 +177,11 @@ func (app *App) routes() http.Handler {
 
 	r.Post("/api/v1/feed_follows", app.requireAuth(app.createFeedFollowHandler))
 	r.Delete("/api/v1/feed_follows/{id}", app.requireAuth(app.deleteFeedFollowHandler))
-	r.Get("/api/v1/feed_follows", app.listFeedFollowHandler)
+	r.Get("/api/v1/feed_follows", app.requireAuth(app.listFeedFollowHandler))
 
-	r.Get("/api/v1/posts", app.requireAuth(app.listPostsFollowedByUser))
-	r.Get("/api/v1/allposts", app.listPosts)
+	r.Get("/api/v1/posts", app.requireAuth(app.listPostsFollowedByUserHandler))
+	r.Get("/api/v1/feeds/{id}/posts", app.requireAuth(app.listPostsForFeedHandler))
+	r.Get("/api/v1/allposts", app.listPosts) //@todo test endpoint, delete later
 
 	r.Get("/swagger/*", httpSwagger.Handler(httpSwagger.URL("http://localhost:8080/swagger/doc.json")))
 

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/url"
 	"strconv"
+	"strings"
 
 	"github.com/StelIify/feedbland/internal/validator"
 )
@@ -11,11 +12,15 @@ import (
 const baseUrl = "http://localhost:8080"
 
 var (
-	defaultTitle        = ""
-	defaultLimit        = 20
-	defaultOffset       = 0
-	defaultSortColumn   = "published_at"
-	defaultSortSafeList = []string{"id", "title", "published_at", "-id", "-title", "-published_at"}
+	defaultTitle  = ""
+	defaultLimit  = 20
+	defaultOffset = 0
+
+	defaultSortColumnPosts   = "-published_at"
+	defaultSortSafeListPosts = []string{"id", "title", "published_at", "-id", "-title", "-published_at"}
+
+	defaultSortColumnFeeds   = "created_at"
+	defaultSortSafeListFeeds = []string{"id", "name", "created_at", "-id", "-name", "-created_at"}
 )
 
 type Filters struct {
@@ -26,14 +31,40 @@ type Filters struct {
 	SortSafelist []string
 }
 
-func NewFilters(qs url.Values, v *validator.Validator) Filters {
+func NewPostsFilters(qs url.Values, v *validator.Validator) Filters {
 	return Filters{
 		Title:        ReadString(qs, "title", defaultTitle),
 		Limit:        ReadInt(qs, "limit", defaultLimit, v),
 		Offset:       ReadInt(qs, "offset", defaultOffset, v),
-		Sort:         ReadString(qs, "sort", defaultSortColumn),
-		SortSafelist: defaultSortSafeList,
+		Sort:         ReadString(qs, "sort", defaultSortColumnPosts),
+		SortSafelist: defaultSortSafeListPosts,
 	}
+}
+func NewFeedsFilters(qs url.Values, v *validator.Validator) Filters {
+	return Filters{
+		Title:        ReadString(qs, "title", defaultTitle),
+		Limit:        ReadInt(qs, "limit", defaultLimit, v),
+		Offset:       ReadInt(qs, "offset", defaultOffset, v),
+		Sort:         ReadString(qs, "sort", defaultSortColumnFeeds),
+		SortSafelist: defaultSortSafeListFeeds,
+	}
+}
+
+func (f Filters) SortColumn() string {
+	for _, safeValue := range f.SortSafelist {
+		if f.Sort == safeValue {
+			return strings.TrimPrefix(f.Sort, "-")
+		}
+
+	}
+	panic("unsafe sort parameter: " + f.Sort)
+}
+
+func (f Filters) SortDirection() string {
+	if strings.HasPrefix(f.Sort, "-") {
+		return "DESC"
+	}
+	return "ASC"
 }
 
 func ReadString(qs url.Values, key, defaultValue string) string {

@@ -22,6 +22,7 @@ import (
 	"github.com/jackc/pgerrcode"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 // @Summary Health Check
@@ -188,7 +189,7 @@ func (app *App) authenticateUserHandler(w http.ResponseWriter, r *http.Request) 
 	// 	HttpOnly: true,
 	// }
 	// http.SetCookie(w, &cookie)
-	err = app.writeJson(w, http.StatusCreated, envelope{"auth_token": token}, nil)
+	err = app.writeJson(w, http.StatusOK, envelope{"auth_token": token}, nil)
 
 	if err != nil {
 		app.serverErrorResponse(w, r, err)
@@ -205,18 +206,33 @@ func (app *App) authenticateUserHandler(w http.ResponseWriter, r *http.Request) 
 // @Failure 500 {object} string
 // @Router /api/v1/feeds [get]
 func (app *App) listFeedsHandler(w http.ResponseWriter, r *http.Request) {
-	feeds, err := app.db.ListFeeds(r.Context())
+	v := validator.NewValidator()
+	qs := r.URL.Query()
+	filters := data.NewFeedsFilters(qs, v)
+
+	if validator.ValidateFilters(v, filters.Offset, filters.Limit, filters.Sort, filters.SortSafelist); !v.Valid() {
+		app.failedValidationResponse(w, r, v.Errors)
+		return
+	}
+	feeds, err := app.customQueries.ListAllFeeds(r.Context(), filters)
 	if err != nil {
 		app.serverErrorResponse(w, r, err)
 		return
 	}
-	err = app.writeJson(w, http.StatusOK, envelope{"feeds": feeds}, nil)
+	feedCound, err := app.db.CountFeeds(r.Context())
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+		return
+	}
+	metadata := data.NewMetadata(feedCound, len(feeds), r.URL.Path, filters)
+	err = app.writeJson(w, http.StatusOK, envelope{"feeds": feeds, "metadata": metadata}, nil)
 	if err != nil {
 		app.serverErrorResponse(w, r, err)
 		return
 	}
 }
 
+// TODO refactor handler
 func (app *App) createFeedHandler(w http.ResponseWriter, r *http.Request) {
 	var input struct {
 		Url string `json:"url"`
@@ -266,7 +282,10 @@ func (app *App) createFeedHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	// create image
 	image_id, err := app.db.CreateImage(r.Context(), database.CreateImageParams{
-		Url:  result.Location,
+		Url: pgtype.Text{
+			String: result.Location,
+			Valid:  true,
+		},
 		Name: rssFeed.Channel.Image.Title,
 	})
 	if err != nil {
@@ -274,10 +293,16 @@ func (app *App) createFeedHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	feed := &database.Feed{
-		Name:        rssFeed.Channel.Title,
-		Description: rssFeed.Channel.Description,
-		ImageID:     image_id,
-		Url:         input.Url,
+		Name: rssFeed.Channel.Title,
+		Description: pgtype.Text{
+			String: rssFeed.Channel.Description,
+			Valid:  true,
+		},
+		ImageID: pgtype.Int8{
+			Int64: image_id,
+			Valid: true,
+		},
+		Url: input.Url,
 	}
 	v := validator.NewValidator()
 	if validator.ValidateFeed(v, feed); !v.Valid() {
@@ -286,11 +311,17 @@ func (app *App) createFeedHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	user := app.contextGetUser(r)
 	new_feed, err := app.db.CreateFeed(r.Context(), database.CreateFeedParams{
-		Name:        rssFeed.Channel.Title,
-		Description: rssFeed.Channel.Description,
-		Url:         input.Url,
-		UserID:      user.ID,
-		ImageID:     image_id,
+		Name: rssFeed.Channel.Title,
+		Description: pgtype.Text{
+			String: rssFeed.Channel.Description,
+			Valid:  true,
+		},
+		Url:    input.Url,
+		UserID: user.ID,
+		ImageID: pgtype.Int8{
+			Int64: image_id,
+			Valid: true,
+		},
 	})
 
 	if err != nil {
@@ -357,7 +388,8 @@ func (app *App) deleteFeedFollowHandler(w http.ResponseWriter, r *http.Request) 
 }
 
 func (app *App) listFeedFollowHandler(w http.ResponseWriter, r *http.Request) {
-	feed_follows, err := app.db.ListFeedFollow(r.Context())
+	user := app.contextGetUser(r)
+	feed_follows, err := app.db.ListFeedFollow(r.Context(), user.ID)
 	if err != nil {
 		app.serverErrorResponse(w, r, err)
 		return
@@ -369,9 +401,27 @@ func (app *App) listFeedFollowHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (app *App) listPostsFollowedByUser(w http.ResponseWriter, r *http.Request) {
+func (app *App) listPostsFollowedByUserHandler(w http.ResponseWriter, r *http.Request) {
 	user := app.contextGetUser(r)
 	posts, err := app.db.GetPostsFollowedByUser(r.Context(), user.ID)
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+		return
+	}
+	err = app.writeJson(w, http.StatusOK, envelope{"posts": posts}, nil)
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+		return
+	}
+}
+
+func (app *App) listPostsForFeedHandler(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	if err != nil {
+		app.badRequestResponse(w, r, err)
+		return
+	}
+	posts, err := app.db.GetPostsForFeed(r.Context(), id)
 	if err != nil {
 		app.serverErrorResponse(w, r, err)
 		return
@@ -386,17 +436,13 @@ func (app *App) listPostsFollowedByUser(w http.ResponseWriter, r *http.Request) 
 func (app *App) listPosts(w http.ResponseWriter, r *http.Request) {
 	v := validator.NewValidator()
 	qs := r.URL.Query()
-	filters := data.NewFilters(qs, v)
+	filters := data.NewPostsFilters(qs, v)
 
 	if validator.ValidateFilters(v, filters.Offset, filters.Limit, filters.Sort, filters.SortSafelist); !v.Valid() {
 		app.failedValidationResponse(w, r, v.Errors)
 		return
 	}
-	posts, err := app.db.ListPosts(r.Context(), database.ListPostsParams{
-		PlaintoTsquery: filters.Title,
-		Limit:          int32(filters.Limit),
-		Offset:         int32(filters.Offset),
-	})
+	posts, err := app.customQueries.ListAllPosts(r.Context(), filters)
 	if err != nil {
 		app.serverErrorResponse(w, r, err)
 		return

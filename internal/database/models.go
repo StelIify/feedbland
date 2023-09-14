@@ -6,18 +6,20 @@ package database
 
 import (
 	"time"
+
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 type Feed struct {
-	ID            int64     `json:"id"`
-	CreatedAt     time.Time `json:"created_at"`
-	UpdatedAt     time.Time `json:"updated_at"`
-	Name          string    `json:"name"`
-	Url           string    `json:"url"`
-	UserID        int64     `json:"user_id"`
-	LastFetchedAt time.Time `json:"last_fetched_at"`
-	ImageID       int64     `json:"image_id"`
-	Description   string    `json:"description"`
+	ID            int64       `json:"id"`
+	CreatedAt     time.Time   `json:"created_at"`
+	UpdatedAt     time.Time   `json:"updated_at"`
+	Name          string      `json:"name"`
+	Url           string      `json:"url"`
+	UserID        int64       `json:"user_id"`
+	LastFetchedAt time.Time   `json:"last_fetched_at"`
+	ImageID       pgtype.Int8 `json:"image_id"`
+	Description   pgtype.Text `json:"description"`
 }
 
 type FeedFollow struct {
@@ -28,23 +30,23 @@ type FeedFollow struct {
 }
 
 type Image struct {
-	ID        int64     `json:"id"`
-	Url       string    `json:"url"`
-	Name      string    `json:"name"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
+	ID        int64       `json:"id"`
+	Url       pgtype.Text `json:"url"`
+	Name      string      `json:"name"`
+	CreatedAt time.Time   `json:"created_at"`
+	UpdatedAt time.Time   `json:"updated_at"`
 }
 
 type Post struct {
-	ID          int64     `json:"id"`
-	FeedID      int64     `json:"feed_id"`
-	CreatedAt   time.Time `json:"created_at"`
-	UpdatedAt   time.Time `json:"updated_at"`
-	Title       string    `json:"title"`
-	Url         string    `json:"url"`
-	Description string    `json:"description"`
-	PublishedAt time.Time `json:"published_at"`
-	ImageID     int64     `json:"image_id"`
+	ID          int64       `json:"id"`
+	FeedID      int64       `json:"feed_id"`
+	CreatedAt   time.Time   `json:"created_at"`
+	UpdatedAt   time.Time   `json:"updated_at"`
+	Title       string      `json:"title"`
+	Url         string      `json:"url"`
+	Description string      `json:"description"`
+	PublishedAt time.Time   `json:"published_at"`
+	ImageID     pgtype.Int8 `json:"image_id"`
 }
 
 type Token struct {

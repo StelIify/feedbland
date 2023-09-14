@@ -8,7 +8,20 @@ package database
 import (
 	"context"
 	"time"
+
+	"github.com/jackc/pgx/v5/pgtype"
 )
+
+const countFeeds = `-- name: CountFeeds :one
+select count(*) from feeds
+`
+
+func (q *Queries) CountFeeds(ctx context.Context) (int64, error) {
+	row := q.db.QueryRow(ctx, countFeeds)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
 
 const createFeed = `-- name: CreateFeed :one
 insert into feeds (name, description, url, user_id, image_id)
@@ -17,11 +30,11 @@ returning id, created_at, name, url, user_id
 `
 
 type CreateFeedParams struct {
-	Name        string `json:"name"`
-	Description string `json:"description"`
-	Url         string `json:"url"`
-	UserID      int64  `json:"user_id"`
-	ImageID     int64  `json:"image_id"`
+	Name        string      `json:"name"`
+	Description pgtype.Text `json:"description"`
+	Url         string      `json:"url"`
+	UserID      int64       `json:"user_id"`
+	ImageID     pgtype.Int8 `json:"image_id"`
 }
 
 type CreateFeedRow struct {
@@ -52,7 +65,8 @@ func (q *Queries) CreateFeed(ctx context.Context, arg CreateFeedParams) (CreateF
 }
 
 const generateNextFeedsToFetch = `-- name: GenerateNextFeedsToFetch :many
-select id, name, url from feeds
+select id, name, url
+from feeds
 order by last_fetched_at asc nulls first
 limit $1
 `
@@ -84,23 +98,34 @@ func (q *Queries) GenerateNextFeedsToFetch(ctx context.Context, limit int32) ([]
 }
 
 const listFeeds = `-- name: ListFeeds :many
-select f.id, f.created_at, f.name, f.url, f.user_id, images.url as image_url, images.name as image_alt from feeds f
-join images on images.id=f.image_id
-order by created_at
+select f.id, f.created_at, f.name, f.url, f.user_id, f.description,
+coalesce(images.url, 'https://feebland.s3.eu-west-3.amazonaws.com/feedsImg/default-feed-image.jpg') as image_url, coalesce(images.name, 'default image') as image_alt
+from feeds f
+left join images on images.id=f.image_id
+where (to_tsvector('simple', f.name) @@ plainto_tsquery('simple', $1) or $1 = '')
+order by created_at desc
+limit $2 offset $3
 `
 
-type ListFeedsRow struct {
-	ID        int64     `json:"id"`
-	CreatedAt time.Time `json:"created_at"`
-	Name      string    `json:"name"`
-	Url       string    `json:"url"`
-	UserID    int64     `json:"user_id"`
-	ImageUrl  string    `json:"image_url"`
-	ImageAlt  string    `json:"image_alt"`
+type ListFeedsParams struct {
+	PlaintoTsquery string `json:"plainto_tsquery"`
+	Limit          int32  `json:"limit"`
+	Offset         int32  `json:"offset"`
 }
 
-func (q *Queries) ListFeeds(ctx context.Context) ([]ListFeedsRow, error) {
-	rows, err := q.db.Query(ctx, listFeeds)
+type ListFeedsRow struct {
+	ID          int64       `json:"id"`
+	CreatedAt   time.Time   `json:"created_at"`
+	Name        string      `json:"name"`
+	Url         string      `json:"url"`
+	UserID      int64       `json:"user_id"`
+	Description pgtype.Text `json:"description"`
+	ImageUrl    string      `json:"image_url"`
+	ImageAlt    string      `json:"image_alt"`
+}
+
+func (q *Queries) ListFeeds(ctx context.Context, arg ListFeedsParams) ([]ListFeedsRow, error) {
+	rows, err := q.db.Query(ctx, listFeeds, arg.PlaintoTsquery, arg.Limit, arg.Offset)
 	if err != nil {
 		return nil, err
 	}
@@ -114,6 +139,7 @@ func (q *Queries) ListFeeds(ctx context.Context) ([]ListFeedsRow, error) {
 			&i.Name,
 			&i.Url,
 			&i.UserID,
+			&i.Description,
 			&i.ImageUrl,
 			&i.ImageAlt,
 		); err != nil {

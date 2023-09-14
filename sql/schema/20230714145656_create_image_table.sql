@@ -23,6 +23,6 @@ alter table feeds
     drop column image_id;
 
 alter table posts
-    drop column image_id;
+    drop column image_fd;
 -- +goose StatementEnd
 

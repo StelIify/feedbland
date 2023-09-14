@@ -8,6 +8,8 @@ package database
 import (
 	"context"
 	"time"
+
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const countPosts = `-- name: CountPosts :one
@@ -47,31 +49,68 @@ func (q *Queries) CreatePost(ctx context.Context, arg CreatePostParams) error {
 }
 
 const getPostsFollowedByUser = `-- name: GetPostsFollowedByUser :many
-select p.id, p.feed_id, p.created_at, p.updated_at, p.title, p.url, p.description, p.published_at, p.image_id from posts p 
+select p.id, p.title, img.url from posts p 
 join feed_follows fw on fw.feed_id=p.feed_id
+left join images img on img.id=p.image_id
 where fw.user_id = $1
 order by p.published_at desc
 `
 
-func (q *Queries) GetPostsFollowedByUser(ctx context.Context, userID int64) ([]Post, error) {
+type GetPostsFollowedByUserRow struct {
+	ID    int64       `json:"id"`
+	Title string      `json:"title"`
+	Url   pgtype.Text `json:"url"`
+}
+
+func (q *Queries) GetPostsFollowedByUser(ctx context.Context, userID int64) ([]GetPostsFollowedByUserRow, error) {
 	rows, err := q.db.Query(ctx, getPostsFollowedByUser, userID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []Post
+	var items []GetPostsFollowedByUserRow
 	for rows.Next() {
-		var i Post
+		var i GetPostsFollowedByUserRow
+		if err := rows.Scan(&i.ID, &i.Title, &i.Url); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getPostsForFeed = `-- name: GetPostsForFeed :many
+select p.id, p.title, p.url, p.description, p.published_at from posts p
+where feed_id=$1
+order by p.published_at desc
+`
+
+type GetPostsForFeedRow struct {
+	ID          int64     `json:"id"`
+	Title       string    `json:"title"`
+	Url         string    `json:"url"`
+	Description string    `json:"description"`
+	PublishedAt time.Time `json:"published_at"`
+}
+
+func (q *Queries) GetPostsForFeed(ctx context.Context, feedID int64) ([]GetPostsForFeedRow, error) {
+	rows, err := q.db.Query(ctx, getPostsForFeed, feedID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetPostsForFeedRow
+	for rows.Next() {
+		var i GetPostsForFeedRow
 		if err := rows.Scan(
 			&i.ID,
-			&i.FeedID,
-			&i.CreatedAt,
-			&i.UpdatedAt,
 			&i.Title,
 			&i.Url,
 			&i.Description,
 			&i.PublishedAt,
-			&i.ImageID,
 		); err != nil {
 			return nil, err
 		}

@@ -7,6 +7,8 @@ package database
 
 import (
 	"context"
+
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const createImage = `-- name: CreateImage :one
@@ -16,8 +18,8 @@ returning id
 `
 
 type CreateImageParams struct {
-	Url  string `json:"url"`
-	Name string `json:"name"`
+	Url  pgtype.Text `json:"url"`
+	Name string      `json:"name"`
 }
 
 func (q *Queries) CreateImage(ctx context.Context, arg CreateImageParams) (int64, error) {

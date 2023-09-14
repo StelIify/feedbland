@@ -87,3 +87,4 @@ func (app *App) runInBackground(fn func()) {
 		fn()
 	}()
 }
+

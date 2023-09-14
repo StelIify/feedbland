@@ -9,6 +9,7 @@ import (
 )
 
 type Querier interface {
+	CountFeeds(ctx context.Context) (int64, error)
 	CountPosts(ctx context.Context, plaintoTsquery string) (int64, error)
 	CreateFeed(ctx context.Context, arg CreateFeedParams) (CreateFeedRow, error)
 	CreateFeedFollow(ctx context.Context, arg CreateFeedFollowParams) (FeedFollow, error)
@@ -19,11 +20,12 @@ type Querier interface {
 	DeleteAllUserTokens(ctx context.Context, arg DeleteAllUserTokensParams) error
 	DeleteFeedFollow(ctx context.Context, arg DeleteFeedFollowParams) error
 	GenerateNextFeedsToFetch(ctx context.Context, limit int32) ([]GenerateNextFeedsToFetchRow, error)
-	GetPostsFollowedByUser(ctx context.Context, userID int64) ([]Post, error)
+	GetPostsFollowedByUser(ctx context.Context, userID int64) ([]GetPostsFollowedByUserRow, error)
+	GetPostsForFeed(ctx context.Context, feedID int64) ([]GetPostsForFeedRow, error)
 	GetUserByEmail(ctx context.Context, email string) (GetUserByEmailRow, error)
 	GetUserByToken(ctx context.Context, arg GetUserByTokenParams) (GetUserByTokenRow, error)
-	ListFeedFollow(ctx context.Context) ([]FeedFollow, error)
-	ListFeeds(ctx context.Context) ([]ListFeedsRow, error)
+	ListFeedFollow(ctx context.Context, userID int64) ([]ListFeedFollowRow, error)
+	ListFeeds(ctx context.Context, arg ListFeedsParams) ([]ListFeedsRow, error)
 	ListPosts(ctx context.Context, arg ListPostsParams) ([]ListPostsRow, error)
 	MarkFeedFetched(ctx context.Context, id int64) error
 	UpdateUser(ctx context.Context, arg UpdateUserParams) (int32, error)
